@@ -2,9 +2,8 @@ import { useState } from "react";
 import LoginPage from "./components/LoginPage";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import Dashboard from "./components/Dashboard";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
+import { loginUser } from "./api/auth";
+import { fetchStudentProfile } from "./api/student";
 
 const ROLE_MAP = {
   Student: "STUDENT",
@@ -24,30 +23,15 @@ function App() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/v1/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: userId.trim(),
-          password,
-        }),
-      });
+      const result = await loginUser(userId, password);
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      if (!result.success) {
         throw new Error(result.message || "Login failed");
       }
 
-      const expectedRoles = {
-        Student: "STUDENT",
-        Staff: "FACULTY",
-        Admin: "ADMIN",
-      };
+      const expectedRole = ROLE_MAP[role] || role;
 
-      if (result.data.role !== expectedRoles[role]) {
+      if (result.data.role !== expectedRole) {
         throw new Error("Please select the correct role for this account.");
       }
 
@@ -55,26 +39,18 @@ function App() {
 
       let profile = result.data;
 
-      if (role === "Student") {
-        const profileResponse = await fetch(`${API_BASE_URL}/student/me`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${result.token}`,
-          },
-        });
-
-        const profileResult = await profileResponse.json();
-
-        if (!profileResponse.ok || !profileResult.success) {
-          throw new Error(
-            profileResult.message || "Unable to fetch student profile.",
-          );
+      if (result.data.role === "STUDENT") {
+        try {
+          const profileResult = await fetchStudentProfile(result.token);
+          if (profileResult.success && profileResult.data) {
+            profile = {
+              ...result.data,
+              ...profileResult.data,
+            };
+          }
+        } catch (profileErr) {
+          console.warn("Could not fetch detailed student profile:", profileErr.message);
         }
-
-        profile = {
-          ...result.data,
-          ...profileResult.data,
-        };
       }
 
       setUser({
@@ -87,7 +63,8 @@ function App() {
           profile.register_no || profile.registerNo || result.data.username,
         department: profile.department_name || profile.department || null,
         email: profile.email || result.data.email,
-        role,
+        role: result.data.role, // Canonical role: "STUDENT", "FACULTY", "ADMIN"
+        roleLabel: role,
         gender: profile.gender || "male",
         userId: result.data.user_id,
         studentId: result.data.student_id,
@@ -101,6 +78,7 @@ function App() {
       setLoading(false);
     }
   };
+
   const handleLogout = () => {
     setUser(null);
     setToken(null);
@@ -120,7 +98,7 @@ function App() {
         {loginError && (
           <div
             role="alert"
-            className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-lg border border-red-200 bg-white p-4 text-sm text-red-700 shadow-lg"
+            className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-xl"
           >
             {loginError}
           </div>
