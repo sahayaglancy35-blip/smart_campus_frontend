@@ -15,6 +15,8 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ExclamationTriangleIcon,
+  EyeIcon,
+  AcademicCapIcon,
 } from "@heroicons/react/24/outline";
 
 const STUDENT_STATUSES = [
@@ -24,6 +26,13 @@ const STUDENT_STATUSES = [
   "DISCIPLINARY_WITHDRAWAL",
   "TERMINATED",
   "GRADUATED",
+];
+
+const BATCH_OPTIONS = [
+  { id: 1, label: "Batch 2023-27 (Batch #1)" },
+  { id: 2, label: "Batch 2024-28 (Batch #2)" },
+  { id: 3, label: "Batch 2025-29 (Batch #3)" },
+  { id: 4, label: "Batch 2026-30 (Batch #4)" },
 ];
 
 export function StudentManagementView({ token }) {
@@ -36,6 +45,7 @@ export function StudentManagementView({ token }) {
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
+  const [viewingStudent, setViewingStudent] = useState(null);
   const [deletingStudent, setDeletingStudent] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -172,9 +182,14 @@ export function StudentManagementView({ token }) {
       header: "Reg No",
       key: "register_no",
       render: (row) => (
-        <span className="font-mono text-xs font-bold text-green-800 bg-green-50 px-2 py-1 rounded">
+        <button
+          type="button"
+          onClick={() => setViewingStudent(row)}
+          className="font-mono text-xs font-bold text-green-800 bg-green-50 hover:bg-green-100 px-2 py-1 rounded transition text-left cursor-pointer"
+          title="Click to view full details"
+        >
           {row.register_no}
-        </span>
+        </button>
       ),
     },
     {
@@ -182,7 +197,13 @@ export function StudentManagementView({ token }) {
       key: "full_name",
       render: (row) => (
         <div>
-          <p className="font-bold text-gray-900">{row.full_name}</p>
+          <button
+            type="button"
+            onClick={() => setViewingStudent(row)}
+            className="font-bold text-gray-900 hover:text-green-800 text-left transition cursor-pointer"
+          >
+            {row.full_name}
+          </button>
           <p className="text-xs text-gray-400">{row.email || "No email"}</p>
         </div>
       ),
@@ -193,10 +214,12 @@ export function StudentManagementView({ token }) {
       render: (row) => <span className="text-xs text-gray-600">{row.phone || "—"}</span>,
     },
     {
-      header: "Batch ID",
+      header: "Batch",
       key: "batch_id",
       render: (row) => (
-        <span className="text-xs font-semibold text-gray-700">Batch #{row.batch_id}</span>
+        <span className="text-xs font-semibold text-gray-700">
+          {row.batch_label || `Batch #${row.batch_id}`}
+        </span>
       ),
     },
     {
@@ -208,7 +231,15 @@ export function StudentManagementView({ token }) {
       header: "Actions",
       align: "right",
       render: (row) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => setViewingStudent(row)}
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-700 transition"
+            title="View Details"
+          >
+            <EyeIcon className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => handleOpenEdit(row)}
@@ -325,16 +356,19 @@ export function StudentManagementView({ token }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase text-gray-700">
-                Batch ID <span className="text-red-500">*</span>
+                Batch Cohort <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                min="1"
-                required
+              <select
                 value={formData.batch_id}
-                onChange={(e) => setFormData({ ...formData, batch_id: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, batch_id: Number(e.target.value) })}
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              />
+              >
+                {BATCH_OPTIONS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-gray-700">
@@ -437,15 +471,19 @@ export function StudentManagementView({ token }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase text-gray-700">
-                Batch ID
+                Batch Cohort <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                min="1"
+              <select
                 value={formData.batch_id}
-                onChange={(e) => setFormData({ ...formData, batch_id: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, batch_id: Number(e.target.value) })}
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              />
+              >
+                {BATCH_OPTIONS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-gray-700">
@@ -482,6 +520,100 @@ export function StudentManagementView({ token }) {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* View Student Details Modal */}
+      <Modal
+        isOpen={Boolean(viewingStudent)}
+        onClose={() => setViewingStudent(null)}
+        title="Student Information Details"
+        maxWidth="max-w-lg"
+      >
+        {viewingStudent && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100 text-green-800">
+                <AcademicCapIcon className="h-6 w-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-gray-900">
+                  {viewingStudent.full_name}
+                </h4>
+                <span className="font-mono text-xs font-semibold text-green-800 bg-green-50 px-2 py-0.5 rounded">
+                  {viewingStudent.register_no}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                <span className="text-gray-400 font-medium">Academic Status</span>
+                <div className="mt-1">
+                  <Badge status={viewingStudent.status} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                <span className="text-gray-400 font-medium">Batch Affiliation</span>
+                <p className="mt-1 font-semibold text-gray-800">
+                  {viewingStudent.batch_label || `Batch #${viewingStudent.batch_id}`}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                <span className="text-gray-400 font-medium">Email Address</span>
+                <p className="mt-1 font-semibold text-gray-800">
+                  {viewingStudent.email || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                <span className="text-gray-400 font-medium">Contact Phone</span>
+                <p className="mt-1 font-semibold text-gray-800">
+                  {viewingStudent.phone || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                <span className="text-gray-400 font-medium">System Student ID</span>
+                <p className="mt-1 font-mono font-semibold text-gray-800">
+                  #{viewingStudent.student_id}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                <span className="text-gray-400 font-medium">Registration Date</span>
+                <p className="mt-1 font-semibold text-gray-800">
+                  {viewingStudent.created_at
+                    ? new Date(viewingStudent.created_at).toLocaleDateString()
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setViewingStudent(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const st = viewingStudent;
+                  setViewingStudent(null);
+                  handleOpenEdit(st);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900"
+              >
+                <PencilSquareIcon className="h-4 w-4" />
+                Edit Student
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete Confirmation Modal */}
