@@ -16,3 +16,11 @@ export async function getAuthMe(token) {
     token,
   });
 }
+
+export async function logoutUser(token, signal) {
+  return apiClient("/auth/logout", {
+    method: "POST",
+    token,
+    signal,
+  });
+}

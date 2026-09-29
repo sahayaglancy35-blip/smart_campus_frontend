@@ -3,7 +3,7 @@ import LoginPage from "./components/LoginPage";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import Dashboard from "./components/Dashboard";
 import LoadingSpinner from "./components/common/LoadingSpinner";
-import { loginUser, getAuthMe } from "./api/auth";
+import { loginUser, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
 
 const ROLE_MAP = {
@@ -35,6 +35,7 @@ export function App() {
   const [loginError, setLoginError] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const buildUserProfile = useCallback(async (authData, authToken) => {
     let profile = authData;
@@ -221,7 +222,20 @@ export function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    const currentToken = token || getStoredToken();
+    if (currentToken) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        await logoutUser(currentToken, controller.signal);
+        clearTimeout(timeoutId);
+      } catch (err) {
+        console.warn("Server-side logout notice:", err.message);
+      }
+    }
+
     try {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(LEGACY_TOKEN_KEY);
@@ -232,6 +246,7 @@ export function App() {
     setToken(null);
     setLoginError("");
     setSessionError("");
+    setIsLoggingOut(false);
     setView("login");
   };
 
@@ -243,6 +258,24 @@ export function App() {
       setView("login");
     }
   };
+
+  // 0. Logging out state: revoking session
+  if (isLoggingOut) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
+            JU
+          </div>
+          <h2 className="text-base font-bold text-gray-900 mb-1">
+            Joy University Smart Campus
+          </h2>
+          <p className="text-xs text-gray-500 mb-6">Revoking secure session and signing out...</p>
+          <LoadingSpinner message="Signing out securely..." size="md" />
+        </div>
+      </div>
+    );
+  }
 
   // 1. Initializing state: verifying existing session
   if (isInitializing) {
