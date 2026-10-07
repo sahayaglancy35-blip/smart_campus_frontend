@@ -15,7 +15,7 @@ import { ROLES, inputClass } from "../constants";
    decides what happens next (e.g. calling an API, building a user
    object, and switching to the dashboard).
 ================================================================= */
-function LoginPage({ onLogin, onForgotPassword }) {
+function LoginPage({ onLogin, onForgotPassword, loading = false }) {
   const [role, setRole] = useState("Student");
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -28,16 +28,14 @@ function LoginPage({ onLogin, onForgotPassword }) {
     setRole(newRole);
     setUserId("");
   };
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
+  const handleSubmit = (e) => {
+    e.preventDefault();
     onLogin({ role, userId, password });
   };
 
   return (
     <div className="min-h-screen bg-green-50 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-4xl grid lg:grid-cols-2 overflow-hidden rounded-2xl bg-white shadow-xl shadow-green-900/10 ring-1 ring-green-900/5">
-
         {/* ================= BRAND PANEL (desktop only) ================= */}
         <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-green-900 p-10 text-white">
           <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full border border-white/10" />
@@ -50,13 +48,18 @@ function LoginPage({ onLogin, onForgotPassword }) {
           </div>
 
           <div className="relative">
-            <h1 className="text-4xl font-bold leading-tight tracking-tight">Welcome back</h1>
+            <h1 className="text-4xl font-bold leading-tight tracking-tight">
+              Welcome back
+            </h1>
             <p className="mt-4 max-w-xs text-base leading-relaxed text-green-100">
-              Secure access for students, staff and administrators. Sign in to continue to your account.
+              Secure access for students, staff and administrators. Sign in to
+              continue to your account.
             </p>
           </div>
 
-          <p className="relative text-sm text-green-200/80">&copy; {new Date().getFullYear()} All rights reserved</p>
+          <p className="relative text-sm text-green-200/80">
+            &copy; {new Date().getFullYear()} All rights reserved
+          </p>
         </aside>
 
         {/* ================= FORM PANEL ================= */}
@@ -65,14 +68,20 @@ function LoginPage({ onLogin, onForgotPassword }) {
             <UserIcon className="h-7 w-7" />
           </div>
 
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Sign in</h2>
-          <p className="mt-1.5 text-[15px] text-gray-500">Choose your role and enter your details.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+            Sign in
+          </h2>
+          <p className="mt-1.5 text-[15px] text-gray-500">
+            Choose your role and enter your details.
+          </p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-
             {/* ---------- Role ---------- */}
             <div>
-              <span id="role-label" className="mb-2 block text-sm font-medium text-gray-700">
+              <span
+                id="role-label"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 Role
               </span>
               <div
@@ -106,7 +115,10 @@ function LoginPage({ onLogin, onForgotPassword }) {
 
             {/* ---------- User ID / Register No ---------- */}
             <div>
-              <label htmlFor="userId" className="mb-2 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="userId"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 {idLabel} <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -126,7 +138,10 @@ function LoginPage({ onLogin, onForgotPassword }) {
 
             {/* ---------- Password ---------- */}
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 Password <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -147,7 +162,11 @@ function LoginPage({ onLogin, onForgotPassword }) {
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 transition hover:bg-green-50 hover:text-green-700 focus-visible:outline-2 focus-visible:outline-green-600"
                 >
-                  {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -171,7 +190,7 @@ function LoginPage({ onLogin, onForgotPassword }) {
               type="submit"
               className="h-12 w-full rounded-lg bg-green-700 text-base font-semibold text-white shadow-sm transition hover:bg-green-800 active:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
             >
-              Login
+              {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
         </main>

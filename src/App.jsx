@@ -1,47 +1,386 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import LoginPage from "./components/LoginPage";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import Dashboard from "./components/Dashboard";
+import LoadingSpinner from "./components/common/LoadingSpinner";
+import { loginUser, getAuthMe, logoutUser } from "./api/auth";
+import { fetchStudentProfile } from "./api/student";
+import { fetchFacultyProfile } from "./api/faculty";
 
-/* ================================================================
-   APP
-   Holds the two pieces of state every component needs:
-   - view: which of the three components is showing
-   - user: the logged-in user's profile, passed down to Dashboard
-================================================================= */
-function App() {
+const ROLE_MAP = {
+  Student: "STUDENT",
+  Staff: "FACULTY",
+  Admin: "ADMIN",
+};
+
+const TOKEN_KEY = "smart_campus_jwt";
+const LEGACY_TOKEN_KEY = "token";
+
+function getStoredToken() {
+  try {
+    return (
+      localStorage.getItem(TOKEN_KEY) ||
+      localStorage.getItem(LEGACY_TOKEN_KEY) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function App() {
+  const [token, setToken] = useState(getStoredToken);
+  const [isInitializing, setIsInitializing] = useState(() => Boolean(getStoredToken()));
   const [view, setView] = useState("login");
   const [user, setUser] = useState(null);
+  const [loginError, setLoginError] = useState("");
+  const [sessionError, setSessionError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogin = ({ role, userId }) => {
-    // TODO: replace with a real authentication call. `name`,
-    // `department`, `email` and `gender` are placeholders until the
-    // API returns them.
-    setUser({
-      name: role === "Student" ? "Aarav Kumar" : role === "Staff" ? "Priya Raman" : "Admin User",
-      registerNo: userId || "—",
-      department: role === "Student" ? "Computer Science" : null,
-      email: role === "Student" ? "aarav.kumar@college.edu" : role === "Staff" ? "priya.raman@college.edu" : "admin@college.edu",
-      role,
-      gender: "male",
-    });
-    setView("dashboard");
+  const buildUserProfile = useCallback(async (authData, authToken) => {
+    let profile = authData;
+
+    if (authData.role === "STUDENT") {
+      try {
+        const profileResult = await fetchStudentProfile(authToken);
+        if (profileResult?.success && profileResult?.data) {
+          profile = {
+            ...authData,
+            ...profileResult.data,
+          };
+        }
+      } catch (profileErr) {
+        console.warn("Could not fetch detailed student profile:", profileErr.message);
+      }
+    } else if (authData.role === "FACULTY") {
+      try {
+        const profileResult = await fetchFacultyProfile(authToken);
+        if (profileResult?.success && profileResult?.data) {
+          profile = {
+            ...authData,
+            ...profileResult.data,
+          };
+        }
+      } catch (profileErr) {
+        console.warn("Could not fetch detailed faculty profile:", profileErr.message);
+      }
+    }
+
+    const roleLabel =
+      authData.role === "STUDENT"
+        ? "Student"
+        : authData.role === "FACULTY"
+        ? "Staff"
+        : "Admin";
+
+    return {
+      name:
+        profile.full_name ||
+        profile.name ||
+        profile.username ||
+        authData.username,
+      registerNo:
+        profile.register_no || profile.registerNo || profile.employee_code || authData.username,
+      department: profile.department_name || profile.department || null,
+      email: profile.email || authData.email,
+      role: authData.role,
+      roleLabel,
+      gender: profile.gender || "male",
+      userId: authData.user_id,
+      studentId: authData.student_id,
+      facultyId: authData.faculty_id || profile.faculty_id,
+    };
+  }, []);
+
+  const restoreSession = useCallback(
+    async (savedToken) => {
+      setIsInitializing(true);
+      setSessionError("");
+
+      try {
+        const result = await getAuthMe(savedToken);
+
+        if (!result?.success || !result?.data) {
+          throw new Error(result?.message || "Invalid session response from server");
+        }
+
+        const userData = await buildUserProfile(result.data, savedToken);
+
+        setToken(savedToken);
+        setUser(userData);
+        setView("dashboard");
+      } catch (err) {
+        console.error("Session restoration error:", err);
+
+        const isAuthError =
+          err.status === 401 ||
+          err.status === 403 ||
+          /invalid|expired|inactive|unauthorized/i.test(err.message || "");
+
+        if (isAuthError) {
+          try {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(LEGACY_TOKEN_KEY);
+          } catch {
+            // Ignore storage errors
+          }
+          setToken(null);
+          setUser(null);
+          setLoginError("Your session has expired. Please log in again.");
+          setView("login");
+        } else {
+          setSessionError(
+            "Unable to connect to the campus server. Please check your network and try again."
+          );
+        }
+      } finally {
+        setIsInitializing(false);
+      }
+    },
+    [buildUserProfile],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    const savedToken = getStoredToken();
+
+    if (!savedToken) {
+      return;
+    }
+
+    getAuthMe(savedToken)
+      .then(async (result) => {
+        if (!mounted) return;
+        if (!result?.success || !result?.data) {
+          throw new Error(result?.message || "Invalid session response from server");
+        }
+
+        const userData = await buildUserProfile(result.data, savedToken);
+        if (!mounted) return;
+
+        setToken(savedToken);
+        setUser(userData);
+        setView("dashboard");
+        setIsInitializing(false);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        console.error("Session restoration error:", err);
+
+        const isAuthError =
+          err.status === 401 ||
+          err.status === 403 ||
+          /invalid|expired|inactive|unauthorized/i.test(err.message || "");
+
+        if (isAuthError) {
+          try {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(LEGACY_TOKEN_KEY);
+          } catch {
+            // Ignore storage errors
+          }
+          setToken(null);
+          setUser(null);
+          setLoginError("Your session has expired. Please log in again.");
+          setView("login");
+        } else {
+          setSessionError(
+            "Unable to connect to the campus server. Please check your network and try again."
+          );
+        }
+        setIsInitializing(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [buildUserProfile]);
+
+  const handleLogin = async ({ role, userId, password }) => {
+    setLoginError("");
+    setSessionError("");
+    setLoading(true);
+
+    try {
+      const result = await loginUser(userId, password);
+
+      if (!result.success) {
+        throw new Error(result.message || "Login failed");
+      }
+
+      const expectedRole = ROLE_MAP[role] || role;
+
+      if (result.data.role !== expectedRole) {
+        throw new Error("Please select the correct role for this account.");
+      }
+
+      // Persist token across browser refreshes
+      try {
+        localStorage.setItem(TOKEN_KEY, result.token);
+        localStorage.setItem(LEGACY_TOKEN_KEY, result.token);
+      } catch (storageErr) {
+        console.warn("Storage write failed:", storageErr);
+      }
+
+      const userData = await buildUserProfile(result.data, result.token);
+
+      setToken(result.token);
+      setUser(userData);
+      setView("dashboard");
+    } catch (error) {
+      setLoginError(error.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    const currentToken = token || getStoredToken();
+    if (currentToken) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        await logoutUser(currentToken, controller.signal);
+        clearTimeout(timeoutId);
+      } catch (err) {
+        console.warn("Server-side logout notice:", err.message);
+      }
+    }
+
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+    } catch {
+      // Ignore storage errors
+    }
     setUser(null);
+    setToken(null);
+    setLoginError("");
+    setSessionError("");
+    setIsLoggingOut(false);
     setView("login");
   };
 
-  if (view === "login") {
-    return <LoginPage onLogin={handleLogin} onForgotPassword={() => setView("forgot")} />;
+  const handleRetrySession = () => {
+    const savedToken = getStoredToken();
+    if (savedToken) {
+      restoreSession(savedToken);
+    } else {
+      setView("login");
+    }
+  };
+
+  // 0. Logging out state: revoking session
+  if (isLoggingOut) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
+            JU
+          </div>
+          <h2 className="text-base font-bold text-gray-900 mb-1">
+            Joy University Smart Campus
+          </h2>
+          <p className="text-xs text-gray-500 mb-6">Revoking secure session and signing out...</p>
+          <LoadingSpinner message="Signing out securely..." size="md" />
+        </div>
+      </div>
+    );
   }
 
+  // 1. Initializing state: verifying existing session
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
+            JU
+          </div>
+          <h2 className="text-base font-bold text-gray-900 mb-1">
+            Joy University Smart Campus
+          </h2>
+          <p className="text-xs text-gray-500 mb-6">Restoring your authenticated session...</p>
+          <LoadingSpinner message="Validating credentials..." size="md" />
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Network / server failure screen with retry
+  if (sessionError && view !== "login") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg border border-red-100">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-700">
+            <svg
+              className="h-8 w-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Connection Problem</h3>
+          <p className="text-xs text-gray-600 mb-6">{sessionError}</p>
+
+          <div className="flex flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={handleRetrySession}
+              className="w-full rounded-xl bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
+            >
+              Retry Connection
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+            >
+              Sign In to Another Account
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Login view
+  if (view === "login") {
+    return (
+      <>
+        <LoginPage
+          onLogin={handleLogin}
+          onForgotPassword={() => setView("forgot")}
+          loading={loading}
+        />
+
+        {loginError && (
+          <div
+            role="alert"
+            className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-xl"
+          >
+            {loginError}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // 4. Forgot password view
   if (view === "forgot") {
     return <ForgotPasswordPage onBack={() => setView("login")} />;
   }
 
-  return <Dashboard user={user} onLogout={handleLogout} />;
+  // 5. Authenticated ERP Dashboard
+  return <Dashboard user={user} token={token} onLogout={handleLogout} />;
 }
 
 export default App;
