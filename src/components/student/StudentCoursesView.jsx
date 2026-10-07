@@ -1,9 +1,77 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fetchStudentCourses } from "../../api/student";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import Badge from "../common/Badge";
-import { BookOpenIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
+import {
+  BookOpenIcon,
+  AcademicCapIcon,
+  Squares2X2Icon,
+  BeakerIcon,
+  UserGroupIcon,
+  TagIcon,
+} from "@heroicons/react/24/outline";
+
+/* ----------------------------------------------------------------
+   useCountUp — animates a number from 0 to `target` once, on mount
+   or whenever target changes. Pure visual polish, no logic change.
+---------------------------------------------------------------- */
+function useCountUp(target, duration = 800) {
+  const [value, setValue] = useState(0);
+  const frame = useRef(null);
+
+  useEffect(() => {
+    const start = performance.now();
+
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(target * eased);
+      if (progress < 1) {
+        frame.current = requestAnimationFrame(tick);
+      }
+    }
+
+    frame.current = requestAnimationFrame(tick);
+    return () => frame.current && cancelAnimationFrame(frame.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+
+  return value;
+}
+
+/* Initials for the subject avatar, e.g. "Data Structures" -> "DS" */
+function initialsOf(name = "") {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/* Delivery type decides the card's accent color + icon, so lab vs
+   theory vs seminar are visually distinct at a glance. */
+const DELIVERY_STYLE = {
+  THEORY: {
+    icon: BookOpenIcon,
+    avatar: "bg-gradient-to-br from-green-600 to-emerald-500",
+    border: "border-l-green-500",
+  },
+  LAB: {
+    icon: BeakerIcon,
+    avatar: "bg-gradient-to-br from-amber-500 to-yellow-400",
+    border: "border-l-amber-500",
+  },
+  SEMINAR: {
+    icon: UserGroupIcon,
+    avatar: "bg-gradient-to-br from-violet-500 to-purple-400",
+    border: "border-l-violet-500",
+  },
+};
+function deliveryStyleOf(type) {
+  const key = (type || "THEORY").toUpperCase();
+  return DELIVERY_STYLE[key] || DELIVERY_STYLE.THEORY;
+}
 
 export function StudentCoursesView({ token }) {
   const [courses, setCourses] = useState([]);
@@ -40,6 +108,8 @@ export function StudentCoursesView({ token }) {
     (total, course) => total + Number(course.credits || 0),
     0
   );
+  const animatedCourseCount = useCountUp(courses.length);
+  const animatedCredits = useCountUp(totalCredits);
 
   if (loading) {
     return <LoadingSpinner message="Loading your registered courses..." />;
@@ -51,8 +121,8 @@ export function StudentCoursesView({ token }) {
 
   if (courses.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center shadow-xs">
-        <AcademicCapIcon className="mx-auto h-12 w-12 text-gray-400" />
+      <div className="rounded-2xl border border-dashed border-green-200 bg-gradient-to-br from-green-50 to-white p-12 text-center">
+        <AcademicCapIcon className="mx-auto h-10 w-10 text-green-700/60" />
         <h3 className="mt-4 text-base font-semibold text-gray-900">
           No courses registered
         </h3>
@@ -64,81 +134,99 @@ export function StudentCoursesView({ token }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-500">
-              Registered Courses
-            </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700">
-              <BookOpenIcon className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="mt-2 text-3xl font-bold text-green-900">{courses.length}</p>
-        </div>
+    <div className="space-y-7">
+      {/* ---------- Hero: dark gradient panel with two animated headline stats ---------- */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-green-950 via-green-900 to-green-800 p-6 text-white shadow-xl shadow-green-900/20 sm:p-8">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-green-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="pointer-events-none absolute right-6 top-6 h-28 w-28 rounded-full border border-white/10" />
+        <div className="pointer-events-none absolute right-10 top-10 h-20 w-20 rounded-full border border-white/10" />
 
-        <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-500">
-              Total Credits Enrolled
-            </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-700">
-              <AcademicCapIcon className="h-5 w-5" />
-            </div>
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold">Your course load this semester</h2>
+            <p className="mt-1.5 text-sm text-green-100/80">
+              A quick look at what you're registered for right now.
+            </p>
           </div>
-          <p className="mt-2 text-3xl font-bold text-green-900">{totalCredits}</p>
-        </div>
-      </div>
 
-      {/* Courses List Grid */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {courses.map((course) => (
-          <article
-            key={course.enrollment_id}
-            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs transition hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="rounded-lg bg-green-50 px-3 py-1 font-mono text-sm font-bold text-green-800">
-                {course.subject_code}
+          <div className="flex gap-4">
+            <div className="flex min-w-[132px] flex-col items-center rounded-2xl bg-white/10 px-5 py-4 ring-1 ring-white/15 backdrop-blur-sm">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/20 text-emerald-200">
+                <BookOpenIcon className="h-5 w-5" />
               </span>
-              <Badge status={course.enrollment_status} />
+              <span className="mt-2 text-3xl font-extrabold tabular-nums">
+                {Math.round(animatedCourseCount)}
+              </span>
+              <span className="text-[11px] text-green-100/70">courses</span>
             </div>
 
-            <h3 className="mt-3 text-lg font-bold text-gray-900">
-              {course.subject_name}
-            </h3>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-600 border-t border-gray-100 pt-3">
-              <div>
-                <span className="text-gray-400">Credits:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {Number(course.credits)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-400">Section:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {course.section_code || "—"}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-400">Delivery:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {course.delivery_type || "THEORY"}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-400">Type:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {course.registration_type || "REGULAR"}
-                </span>
-              </div>
+            <div className="flex min-w-[132px] flex-col items-center rounded-2xl bg-white/10 px-5 py-4 ring-1 ring-white/15 backdrop-blur-sm">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/20 text-emerald-200">
+                <AcademicCapIcon className="h-5 w-5" />
+              </span>
+              <span className="mt-2 text-3xl font-extrabold tabular-nums">
+                {Math.round(animatedCredits)}
+              </span>
+              <span className="text-[11px] text-green-100/70">credits</span>
             </div>
-          </article>
-        ))}
-      </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Course grid: narrower cards, 3 per row on wide screens ---------- */}
+      <section>
+        <h3 className="mb-3 text-base font-bold text-gray-900">Registered courses</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.map((course) => {
+            const style = deliveryStyleOf(course.delivery_type);
+            const DeliveryIcon = style.icon;
+
+            return (
+              <article
+                key={course.enrollment_id}
+                className={`group flex flex-col rounded-2xl border border-gray-200 border-l-4 ${style.border} bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-sm ${style.avatar}`}
+                  >
+                    {initialsOf(course.subject_name)}
+                  </span>
+                  <Badge status={course.enrollment_status} />
+                </div>
+
+                <span className="mt-3 w-fit rounded-md bg-green-50 px-2 py-0.5 font-mono text-xs font-bold text-green-800">
+                  {course.subject_code}
+                </span>
+
+                <h3 className="mt-2 text-base font-bold leading-snug text-gray-900">
+                  {course.subject_name}
+                </h3>
+
+                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600">
+                    <AcademicCapIcon className="h-3.5 w-3.5 text-gray-400" />
+                    {Number(course.credits)} credits
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600">
+                    <Squares2X2Icon className="h-3.5 w-3.5 text-gray-400" />
+                    {course.section_code || "—"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600">
+                    <DeliveryIcon className="h-3.5 w-3.5 text-gray-400" />
+                    {course.delivery_type || "THEORY"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600">
+                    <TagIcon className="h-3.5 w-3.5 text-gray-400" />
+                    {course.registration_type || "REGULAR"}
+                  </span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
