@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { getStudents, getFaculty, getDepartments, getBlocks, getClassrooms } from "../../api/admin";
-import { getAttendanceSessions } from "../../api/attendance";
+import { getAdminDashboardStats } from "../../api/admin";
 import StatCard from "../common/StatCard";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
@@ -36,35 +35,16 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
         setLoading(true);
         setError("");
 
-        const [studentsRes, facultyRes, deptsRes, blocksRes, classroomsRes, sessionsRes] =
-          await Promise.allSettled([
-            getStudents(token, controller.signal),
-            getFaculty(token, controller.signal),
-            getDepartments(token, controller.signal),
-            getBlocks(token, controller.signal),
-            getClassrooms(token, controller.signal),
-            getAttendanceSessions(token, controller.signal),
-          ]);
+        const res = await getAdminDashboardStats(token, controller.signal);
+        const data = res?.data || {};
 
         setStats({
-          studentsCount: studentsRes.status === "fulfilled" && Array.isArray(studentsRes.value?.data)
-            ? studentsRes.value.data.length
-            : 0,
-          facultyCount: facultyRes.status === "fulfilled" && Array.isArray(facultyRes.value?.data)
-            ? facultyRes.value.data.length
-            : 0,
-          departmentsCount: deptsRes.status === "fulfilled" && Array.isArray(deptsRes.value?.data)
-            ? deptsRes.value.data.length
-            : 0,
-          blocksCount: blocksRes.status === "fulfilled" && Array.isArray(blocksRes.value?.data)
-            ? blocksRes.value.data.length
-            : 0,
-          classroomsCount: classroomsRes.status === "fulfilled" && Array.isArray(classroomsRes.value?.data)
-            ? classroomsRes.value.data.length
-            : 0,
-          activeSessionsCount: sessionsRes.status === "fulfilled" && Array.isArray(sessionsRes.value?.data)
-            ? sessionsRes.value.data.filter((s) => s.status === "OPEN" || s.status === "SCHEDULED").length
-            : 0,
+          studentsCount: data.students_count || 0,
+          facultyCount: data.faculty_count || 0,
+          departmentsCount: data.departments_count || 0,
+          blocksCount: data.blocks_count || 0,
+          classroomsCount: data.classrooms_count || 0,
+          activeSessionsCount: data.active_sessions_count || 0,
         });
       } catch (err) {
         if (err.name !== "AbortError") {
@@ -113,6 +93,14 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
       icon: BuildingStorefrontIcon,
       color: "from-green-800 to-emerald-950",
       count: `${stats.blocksCount} Blocks, ${stats.classroomsCount} Rooms`,
+    },
+    {
+      key: "academics",
+      label: "Academics & Timetable",
+      description: "Subjects, course offerings, section mappings, and class schedules",
+      icon: AcademicCapIcon,
+      color: "from-blue-700 to-indigo-900",
+      count: "Curriculum & Timetables",
     },
     {
       key: "sessions",

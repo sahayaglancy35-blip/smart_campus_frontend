@@ -5,6 +5,7 @@ import Dashboard from "./components/Dashboard";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import { loginUser, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
+import { fetchFacultyProfile } from "./api/faculty";
 
 const ROLE_MAP = {
   Student: "STUDENT",
@@ -52,6 +53,18 @@ export function App() {
       } catch (profileErr) {
         console.warn("Could not fetch detailed student profile:", profileErr.message);
       }
+    } else if (authData.role === "FACULTY") {
+      try {
+        const profileResult = await fetchFacultyProfile(authToken);
+        if (profileResult?.success && profileResult?.data) {
+          profile = {
+            ...authData,
+            ...profileResult.data,
+          };
+        }
+      } catch (profileErr) {
+        console.warn("Could not fetch detailed faculty profile:", profileErr.message);
+      }
     }
 
     const roleLabel =
@@ -68,7 +81,7 @@ export function App() {
         profile.username ||
         authData.username,
       registerNo:
-        profile.register_no || profile.registerNo || authData.username,
+        profile.register_no || profile.registerNo || profile.employee_code || authData.username,
       department: profile.department_name || profile.department || null,
       email: profile.email || authData.email,
       role: authData.role,
@@ -76,7 +89,7 @@ export function App() {
       gender: profile.gender || "male",
       userId: authData.user_id,
       studentId: authData.student_id,
-      facultyId: authData.faculty_id,
+      facultyId: authData.faculty_id || profile.faculty_id,
     };
   }, []);
 

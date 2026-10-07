@@ -15,9 +15,13 @@ import FacultyManagementView from "./admin/FacultyManagementView";
 import DepartmentManagementView from "./admin/DepartmentManagementView";
 import InfrastructureManagementView from "./admin/InfrastructureManagementView";
 import AttendanceSessionsView from "./admin/AttendanceSessionsView";
+import AcademicsManagementView from "./admin/AcademicsManagementView";
 
 // Faculty Views
 import FacultyDashboardOverview from "./faculty/FacultyDashboardOverview";
+import { FacultyTimetableView } from "./faculty/FacultyTimetableView";
+import { FacultySessionsView } from "./faculty/FacultySessionsView";
+import { FacultyAttendanceLogsView } from "./faculty/FacultyAttendanceLogsView";
 
 const PAGE_TITLES = {
   // Student Titles
@@ -34,6 +38,7 @@ const PAGE_TITLES = {
   faculty: "Faculty & Staff Management",
   departments: "Academic Departments",
   infrastructure: "Campus Infrastructure & Facilities",
+  academics: "Academic Offerings & Timetable Management",
   sessions: "Attendance Session Management",
 
   // Faculty Titles
@@ -65,6 +70,9 @@ export function Dashboard({ user, token, onLogout }) {
         );
 
       case "timetable":
+        if (role === "FACULTY") {
+          return <FacultyTimetableView token={token} />;
+        }
         return <StudentTimetableView token={token} />;
 
       case "summary":
@@ -101,7 +109,13 @@ export function Dashboard({ user, token, onLogout }) {
       case "infrastructure":
         return <InfrastructureManagementView token={token} />;
 
+      case "academics":
+        return <AcademicsManagementView token={token} />;
+
       case "sessions":
+        if (role === "FACULTY") {
+          return <FacultySessionsView token={token} />;
+        }
         return <AttendanceSessionsView token={token} user={user} />;
 
       // Faculty routes
@@ -115,7 +129,7 @@ export function Dashboard({ user, token, onLogout }) {
         );
 
       case "faculty-attendance":
-        return <AttendanceHistoryView token={token} initialFilter="ALL" />;
+        return <FacultyAttendanceLogsView token={token} />;
 
       default:
         return (
