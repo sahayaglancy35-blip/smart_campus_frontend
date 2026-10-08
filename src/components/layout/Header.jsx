@@ -46,11 +46,6 @@ export function Header({ user, onToggleSidebar, activeTitle }) {
 
       {/* User Status Bar */}
       <div className="flex items-center gap-4">
-        {activeTitle && (
-          <div className="hidden lg:flex items-center text-sm font-semibold text-gray-700 border-l border-gray-200 pl-4">
-            {activeTitle}
-          </div>
-        )}
 
         <div className="flex items-center gap-3">
           <div className="hidden text-right sm:block">
