@@ -78,6 +78,7 @@ export function Sidebar({
     { key: "faculty", label: "Faculty & Staff", icon: IdentificationIcon },
     { key: "departments", label: "Departments", icon: BuildingOffice2Icon },
     { key: "infrastructure", label: "Blocks & Classrooms", icon: BuildingStorefrontIcon },
+    { key: "academics", label: "Academics & Timetable", icon: AcademicCapIcon },
     { key: "sessions", label: "Attendance Sessions", icon: ClipboardDocumentCheckIcon },
   ];
 

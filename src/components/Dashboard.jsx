@@ -15,11 +15,13 @@ import FacultyManagementView from "./admin/FacultyManagementView";
 import DepartmentManagementView from "./admin/DepartmentManagementView";
 import InfrastructureManagementView from "./admin/InfrastructureManagementView";
 import AttendanceSessionsView from "./admin/AttendanceSessionsView";
+import AcademicsManagementView from "./admin/AcademicsManagementView";
 
 // Faculty Views
 import FacultyDashboardOverview from "./faculty/FacultyDashboardOverview";
-import MySchedule from "./faculty/MySchedule";
-import MyAttendanceLogs from "./faculty/MyAttendanceLogs";
+import { FacultyTimetableView } from "./faculty/FacultyTimetableView";
+import { FacultySessionsView } from "./faculty/FacultySessionsView";
+import { FacultyAttendanceLogsView } from "./faculty/FacultyAttendanceLogsView";
 
 const PAGE_TITLES = {
   // Student Titles
@@ -36,6 +38,7 @@ const PAGE_TITLES = {
   faculty: "Faculty & Staff Management",
   departments: "Academic Departments",
   infrastructure: "Campus Infrastructure & Facilities",
+  academics: "Academic Offerings & Timetable Management",
   sessions: "Attendance Session Management",
 
   // Faculty Titles
@@ -67,11 +70,11 @@ export function Dashboard({ user, token, onLogout }) {
         );
 
       case "timetable":
-        return role === "FACULTY" ? (
-          <MySchedule token={token} user={user} />
-        ) : (
-          <StudentTimetableView token={token} />
-        );
+        if (role === "FACULTY") {
+          return <FacultyTimetableView token={token} />;
+        }
+        return <StudentTimetableView token={token} />;
+
       case "summary":
         return <AttendanceSummaryView token={token} />;
 
@@ -106,7 +109,13 @@ export function Dashboard({ user, token, onLogout }) {
       case "infrastructure":
         return <InfrastructureManagementView token={token} />;
 
+      case "academics":
+        return <AcademicsManagementView token={token} />;
+
       case "sessions":
+        if (role === "FACULTY") {
+          return <FacultySessionsView token={token} />;
+        }
         return <AttendanceSessionsView token={token} user={user} />;
 
       // Faculty routes
@@ -120,7 +129,8 @@ export function Dashboard({ user, token, onLogout }) {
         );
 
       case "faculty-attendance":
-         return <MyAttendanceLogs token={token} user={user} />;
+        return <FacultyAttendanceLogsView token={token} />;
+
       default:
         return (
           <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-xs">

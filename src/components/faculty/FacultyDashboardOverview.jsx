@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
-import { getAttendanceSessions } from "../../api/attendance";
+import { fetchFacultyDashboard } from "../../api/faculty";
 import StatCard from "../common/StatCard";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import Badge from "../common/Badge";
 import {
   CalendarDaysIcon,
   ClipboardDocumentCheckIcon,
   ClockIcon,
   SparklesIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 
 export function FacultyDashboardOverview({ token, user, onNavigate }) {
-  const [sessions, setSessions] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
 
@@ -23,13 +25,8 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
       try {
         setLoading(true);
         setError("");
-        const res = await getAttendanceSessions(token, controller.signal);
-        const data = Array.isArray(res?.data) ? res.data : [];
-        // Filter by user's faculty_id if present
-        const filtered = user?.facultyId
-          ? data.filter((s) => s.faculty_id === user.facultyId)
-          : data;
-        setSessions(filtered);
+        const res = await fetchFacultyDashboard(token, controller.signal);
+        setDashboard(res?.data || null);
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Failed to load faculty portal data.");
@@ -43,12 +40,11 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
 
     loadFacultyData();
     return () => controller.abort();
-  }, [token, user]);
+  }, [token]);
 
-  const activeSessions = sessions.filter(
-    (s) => s.status === "OPEN" || s.status === "SCHEDULED"
-  );
-  const completedSessions = sessions.filter((s) => s.status === "CLOSED");
+  const metrics = dashboard?.metrics || {};
+  const activeSessions = dashboard?.active_sessions || [];
+  const todayTimetable = dashboard?.today_timetable || [];
 
   const quickLinks = [
     {
@@ -84,11 +80,11 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
             Faculty Portal Console
           </span>
           <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-            Welcome, Professor {user?.name || ""}
+            Welcome, Professor {user?.name || dashboard?.faculty?.full_name || ""}
           </h2>
           <p className="mt-1 text-sm text-green-100 max-w-xl">
-            Manage your daily course schedule, create and manage attendance sessions, and audit
-            class rosters.
+            {dashboard?.faculty?.designation || "Faculty Member"} •{" "}
+            {dashboard?.faculty?.department_name || user?.department || "Joy University"}
           </p>
         </div>
       </div>
@@ -96,10 +92,11 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
       {loading && <LoadingSpinner message="Loading assigned sessions..." />}
       {error && <Alert type="error" message={error} />}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard
-          label="Total Scheduled Sessions"
-          value={sessions.length}
+          label="Today's Classes"
+          value={todayTimetable.length}
           color="gray"
           icon={CalendarDaysIcon}
         />
@@ -111,11 +108,43 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
         />
         <StatCard
           label="Conducted Sessions"
-          value={completedSessions.length}
+          value={metrics.completed_sessions || 0}
           color="emerald"
           icon={ClockIcon}
         />
+        <StatCard
+          label="Attendance Rate"
+          value={`${metrics.attendance_percentage ?? 0}%`}
+          color="blue"
+          icon={ChartBarIcon}
+        />
       </div>
+
+      {/* Active Session Notification */}
+      {activeSessions.length > 0 && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="success">IN PROGRESS</Badge>
+                <h4 className="text-sm font-bold text-gray-900">
+                  You have {activeSessions.length} active class session(s) open
+                </h4>
+              </div>
+              <p className="mt-1 text-xs text-gray-600">
+                {activeSessions.map((s) => `${s.subject_code} (${s.room_no || "Online"})`).join(", ")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate("sessions")}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition"
+            >
+              Resume Session &rarr;
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quick Links */}
       <div>

@@ -1,5 +1,10 @@
 import apiClient from "./client";
 
+// Admin Institutional Dashboard Stats
+export async function getAdminDashboardStats(token, signal) {
+  return apiClient("/admin/dashboard-stats", { token, signal });
+}
+
 // Student Management (Admin)
 export async function getStudents(token, signal) {
   return apiClient("/students", { token, signal });
