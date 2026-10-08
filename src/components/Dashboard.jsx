@@ -18,6 +18,8 @@ import AttendanceSessionsView from "./admin/AttendanceSessionsView";
 
 // Faculty Views
 import FacultyDashboardOverview from "./faculty/FacultyDashboardOverview";
+import MySchedule from "./faculty/MySchedule";
+import MyAttendanceLogs from "./faculty/MyAttendanceLogs";
 
 const PAGE_TITLES = {
   // Student Titles
@@ -65,8 +67,11 @@ export function Dashboard({ user, token, onLogout }) {
         );
 
       case "timetable":
-        return <StudentTimetableView token={token} />;
-
+        return role === "FACULTY" ? (
+          <MySchedule token={token} user={user} />
+        ) : (
+          <StudentTimetableView token={token} />
+        );
       case "summary":
         return <AttendanceSummaryView token={token} />;
 
@@ -115,8 +120,7 @@ export function Dashboard({ user, token, onLogout }) {
         );
 
       case "faculty-attendance":
-        return <AttendanceHistoryView token={token} initialFilter="ALL" />;
-
+         return <MyAttendanceLogs token={token} user={user} />;
       default:
         return (
           <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-xs">
