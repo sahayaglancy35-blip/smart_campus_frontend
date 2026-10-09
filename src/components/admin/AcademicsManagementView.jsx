@@ -34,6 +34,7 @@ import { getDepartments, getFaculty, getClassrooms } from "../../api/admin";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
 import Modal from "../common/Modal";
+import ConfirmDialog from "../common/ConfirmDialog";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import {
@@ -164,6 +165,33 @@ export function AcademicsManagementView({ token }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  // Application Confirmation Modal State
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    itemDetails: null,
+    confirmText: "Confirm",
+    confirmVariant: "danger",
+    onConfirm: null,
+  });
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog.onConfirm) return;
+    setConfirmLoading(true);
+    try {
+      await confirmDialog.onConfirm();
+      setConfirmDialog((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+    } catch (err) {
+      setError(err.message || "Operation failed.");
+      setTimeout(() => setError(""), 5000);
+      setConfirmDialog((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
 
   // Load all academics & hierarchy data
   useEffect(() => {
@@ -341,17 +369,24 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteSchool = async (row) => {
-    if (!window.confirm(`Are you sure you want to deactivate school "${row.name}"?`)) return;
-    try {
-      await deleteSchool(token, row.school_id);
-      setActionSuccess(`School "${row.name}" deactivated.`);
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to deactivate school.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteSchool = (row) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Deactivate School",
+      message: `Are you sure you want to deactivate school "${row.name}"? This will set the school status to inactive.`,
+      itemDetails: [
+        { label: "School Code", value: row.code },
+        { label: "School Name", value: row.name },
+      ],
+      confirmText: "Deactivate",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        await deleteSchool(token, row.school_id);
+        setActionSuccess(`School "${row.name}" deactivated.`);
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -411,17 +446,24 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteProgram = async (row) => {
-    if (!window.confirm(`Deactivate academic program "${row.name}"?`)) return;
-    try {
-      await deleteProgram(token, row.programme_id);
-      setActionSuccess(`Program "${row.name}" deactivated.`);
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to deactivate program.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteProgram = (row) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Deactivate Academic Program",
+      message: `Are you sure you want to deactivate program "${row.name}"? Active batches will preserve their links.`,
+      itemDetails: [
+        { label: "Program Code", value: row.programme_code || row.code || "N/A" },
+        { label: "Program Name", value: row.name },
+      ],
+      confirmText: "Deactivate",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        await deleteProgram(token, row.programme_id);
+        setActionSuccess(`Program "${row.name}" deactivated.`);
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -471,17 +513,24 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteBatch = async (row) => {
-    if (!window.confirm(`Delete batch "${row.label}"?`)) return;
-    try {
-      await deleteBatch(token, row.batch_id);
-      setActionSuccess(`Batch "${row.label}" deleted.`);
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to delete batch.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteBatch = (row) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Cohort Batch",
+      message: `Are you sure you want to delete batch "${row.label}"? Only batches with no enrolled students or sections can be removed.`,
+      itemDetails: [
+        { label: "Batch", value: `Batch ${row.label}` },
+        { label: "Academic Year", value: row.academic_year_label || `Year #${row.academic_year_id}` },
+      ],
+      confirmText: "Delete",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        await deleteBatch(token, row.batch_id);
+        setActionSuccess(`Batch "${row.label}" deleted.`);
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -537,17 +586,25 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteSubject = async (row) => {
-    if (!window.confirm(`Deactivate subject "${row.name}"?`)) return;
-    try {
-      await deleteSubject(token, row.subject_id);
-      setActionSuccess(`Subject "${row.name}" deactivated.`);
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to deactivate subject.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteSubject = (row) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Deactivate Subject",
+      message: `Are you sure you want to deactivate subject "${row.name}"? Inactive subjects cannot be assigned to new course offerings.`,
+      itemDetails: [
+        { label: "Subject Code", value: row.subject_code },
+        { label: "Subject Name", value: row.name },
+        { label: "Credits", value: row.credits },
+      ],
+      confirmText: "Deactivate",
+      confirmVariant: "warning",
+      onConfirm: async () => {
+        await deleteSubject(token, row.subject_id);
+        setActionSuccess(`Subject "${row.name}" deactivated.`);
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -599,17 +656,25 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteOffering = async (row) => {
-    if (!window.confirm(`Delete course offering #${row.offering_id}?`)) return;
-    try {
-      await deleteCourseOffering(token, row.offering_id);
-      setActionSuccess("Course offering deleted.");
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to delete course offering.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteOffering = (row) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Course Offering",
+      message: `Are you sure you want to delete course offering #${row.offering_id}? Offerings referenced by existing sections cannot be deleted.`,
+      itemDetails: [
+        { label: "Offering ID", value: `#${row.offering_id}` },
+        { label: "Subject", value: `${row.subject_code} - ${row.subject_name}` },
+        { label: "Coordinator", value: row.coordinator_name || "Unassigned" },
+      ],
+      confirmText: "Delete",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        await deleteCourseOffering(token, row.offering_id);
+        setActionSuccess("Course offering deleted.");
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -661,17 +726,25 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteSection = async (row) => {
-    if (!window.confirm(`Delete Section "${row.section_code}"?`)) return;
-    try {
-      await deleteSection(token, row.section_id);
-      setActionSuccess(`Section "${row.section_code}" deleted.`);
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to delete section.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteSection = (row) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Section",
+      message: `Are you sure you want to delete section "${row.section_code}"? Sections referenced by timetable slots or active enrollments cannot be deleted.`,
+      itemDetails: [
+        { label: "Section Code", value: row.section_code },
+        { label: "Subject", value: row.subject_code || `Offering #${row.offering_id}` },
+        { label: "Batch", value: row.batch_label ? `Batch ${row.batch_label}` : "General" },
+      ],
+      confirmText: "Delete",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        await deleteSection(token, row.section_id);
+        setActionSuccess(`Section "${row.section_code}" deleted.`);
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -771,17 +844,33 @@ export function AcademicsManagementView({ token }) {
     }
   };
 
-  const handleDeleteSlot = async (row) => {
-    if (!window.confirm("Remove this timetable slot?")) return;
-    try {
-      await deleteTimetableSlot(token, row.slot_id);
-      setActionSuccess("Timetable slot removed.");
-      setReloadTrigger((prev) => prev + 1);
-      setTimeout(() => setActionSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to remove timetable slot.");
-      setTimeout(() => setError(""), 5000);
-    }
+  const handleDeleteSlot = (row) => {
+    const dayObj = DAYS_OF_WEEK.find((d) => d.id === Number(row.day_of_week));
+    setConfirmDialog({
+      isOpen: true,
+      title: "Remove Timetable Slot",
+      message: "Are you sure you want to deactivate this timetable slot? The slot will be retired while preserving historic attendance logs.",
+      itemDetails: [
+        { label: "Slot ID", value: `#${row.slot_id}` },
+        { label: "Subject", value: `${row.subject_code} - ${row.subject_name}` },
+        {
+          label: "Schedule",
+          value: `${dayObj ? dayObj.name : `Day ${row.day_of_week}`} ${row.start_time?.slice(0, 5)} - ${row.end_time?.slice(0, 5)}`,
+        },
+        {
+          label: "Section / Room",
+          value: `Sec ${row.section_code} • Room ${row.room_no || "TBD"}`,
+        },
+      ],
+      confirmText: "Remove Slot",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        await deleteTimetableSlot(token, row.slot_id);
+        setActionSuccess("Timetable slot removed.");
+        setReloadTrigger((prev) => prev + 1);
+        setTimeout(() => setActionSuccess(""), 4000);
+      },
+    });
   };
 
   // -------------------------------------------------------------
@@ -1274,76 +1363,124 @@ export function AcademicsManagementView({ token }) {
       {error && <Alert type="error" message={error} onClose={() => setError("")} />}
 
       {/* Main Navigation Tabs & Contextual Primary Action */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-1">
-        <div className="flex overflow-x-auto space-x-1">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-gray-200 pb-2">
+        <nav
+          aria-label="Academic Management Tabs"
+          className="flex overflow-x-auto gap-1 pb-1 lg:pb-0 scrollbar-none min-w-0 flex-1"
+        >
           <button
             type="button"
             onClick={() => setActiveTab("timetable")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+            className={`inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
               activeTab === "timetable"
                 ? "border-green-800 text-green-800"
                 : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
             }`}
           >
             <CalendarDaysIcon className="h-4 w-4" />
-            Timetable Schedule ({timetableSlots.length})
+            <span>Timetable Schedule</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === "timetable"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {timetableSlots.length}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("sections")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+            className={`inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
               activeTab === "sections"
                 ? "border-green-800 text-green-800"
                 : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
             }`}
           >
             <UserGroupIcon className="h-4 w-4" />
-            Sections ({sections.length})
+            <span>Sections</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === "sections"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {sections.length}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("offerings")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+            className={`inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
               activeTab === "offerings"
                 ? "border-green-800 text-green-800"
                 : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
             }`}
           >
             <AcademicCapIcon className="h-4 w-4" />
-            Course Offerings ({offerings.length})
+            <span>Course Offerings</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === "offerings"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {offerings.length}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("subjects")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+            className={`inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
               activeTab === "subjects"
                 ? "border-green-800 text-green-800"
                 : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
             }`}
           >
             <BookOpenIcon className="h-4 w-4" />
-            Subjects ({subjects.length})
+            <span>Subjects</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === "subjects"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {subjects.length}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("hierarchy")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+            className={`inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
               activeTab === "hierarchy"
                 ? "border-green-800 text-green-800"
                 : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
             }`}
           >
             <BuildingLibraryIcon className="h-4 w-4" />
-            Academic Structure ({schools.length} Schools / {programs.length} Programs / {batches.length} Batches)
+            <span>Academic Structure</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === "hierarchy"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {schools.length + programs.length + batches.length}
+            </span>
           </button>
-        </div>
+        </nav>
 
         {/* Primary Contextual Action Button */}
-        <div className="flex items-center gap-2 pb-2 sm:pb-0 shrink-0">
+        <div className="flex items-center gap-2 pt-1 lg:pt-0 shrink-0 self-end lg:self-center">
           {activeTab === "hierarchy" && hierarchySubTab === "schools" && (
             <button
               type="button"
@@ -2461,6 +2598,21 @@ export function AcademicsManagementView({ token }) {
           </div>
         </form>
       </Modal>
+
+      {/* Application Confirmation Modal */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() =>
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, onConfirm: null }))
+        }
+        onConfirm={handleConfirmAction}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        itemDetails={confirmDialog.itemDetails}
+        confirmText={confirmDialog.confirmText}
+        confirmVariant={confirmDialog.confirmVariant}
+        loading={confirmLoading}
+      />
     </div>
   );
 }
