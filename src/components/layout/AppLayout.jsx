@@ -10,10 +10,16 @@ export function AppLayout({
   onNavigate,
   onLogout,
   pageTitle,
+  pageSubtitle,
   children,
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const isDashboardPage =
+    activePage === "dashboard" ||
+    activePage === "admin-dashboard" ||
+    activePage === "faculty-dashboard";
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -35,16 +41,20 @@ export function AppLayout({
 
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
           <div className="mx-auto max-w-7xl space-y-6">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200/80 pb-4">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-                  {pageTitle}
-                </h1>
-                <p className="mt-1 text-sm text-gray-500">
-                  Joy University Smart Campus Enterprise Portal
-                </p>
+            {!isDashboardPage && (
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200/80 pb-4">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+                    {pageTitle}
+                  </h1>
+                  {pageSubtitle && (
+                    <p className="mt-1 text-sm text-gray-500">
+                      {pageSubtitle}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div>{children}</div>
           </div>

@@ -242,43 +242,33 @@ export function DepartmentManagementView({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header and School Filter */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-            Department Management
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage academic departments and constituent schools across Joy University.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <BuildingLibraryIcon className="h-4 w-4 text-gray-400" />
-            <select
-              value={selectedSchoolFilter}
-              onChange={(e) => setSelectedSchoolFilter(e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-xs focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-            >
-              <option value="ALL">All Schools ({schools.length})</option>
-              {schools.map((s) => (
-                <option key={s.school_id} value={s.school_id}>
-                  {s.code} - {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenCreate}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
+      {/* School Filter and Action Toolbar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-3">
+        <div className="flex items-center gap-2">
+          <BuildingLibraryIcon className="h-4 w-4 text-gray-500" />
+          <span className="text-xs font-semibold text-gray-700">Filter by School:</span>
+          <select
+            value={selectedSchoolFilter}
+            onChange={(e) => setSelectedSchoolFilter(e.target.value)}
+            className="rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-xs focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
           >
-            <PlusIcon className="h-4 w-4" />
-            New Department
-          </button>
+            <option value="ALL">All Schools ({schools.length})</option>
+            {schools.map((s) => (
+              <option key={s.school_id} value={s.school_id}>
+                {s.code} - {s.name}
+              </option>
+            ))}
+          </select>
         </div>
+
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition shrink-0"
+        >
+          <PlusIcon className="h-4 w-4" />
+          New Department
+        </button>
       </div>
 
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
@@ -292,7 +282,18 @@ export function DepartmentManagementView({ token }) {
           data={filteredDepartments}
           searchPlaceholder="Search department by name or code..."
           pageSize={10}
-          emptyMessage="No departments found matching filter."
+          emptyMessage="No departments found matching the selected school filter."
+          emptyAction={
+            selectedSchoolFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setSelectedSchoolFilter("ALL")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-green-800 bg-white px-3 py-1.5 text-xs font-semibold text-green-800 shadow-xs hover:bg-green-50 transition"
+              >
+                Reset School Filter
+              </button>
+            )
+          }
         />
       )}
 

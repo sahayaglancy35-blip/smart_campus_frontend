@@ -156,6 +156,8 @@ export function AcademicsManagementView({ token }) {
     day_of_week: 1,
     start_time: "09:00:00",
     end_time: "10:00:00",
+    effective_from: new Date().toISOString().split("T")[0],
+    effective_to: "",
     is_active: 1,
   });
 
@@ -245,14 +247,22 @@ export function AcademicsManagementView({ token }) {
   }, [programs, filterSchool, filterDepartment]);
 
   const filteredBatches = useMemo(() => {
-    if (filterProgram === "ALL") return batches;
-    return batches.filter((b) => Number(b.programme_id) === Number(filterProgram));
-  }, [batches, filterProgram]);
+    if (filterProgram !== "ALL") {
+      return batches.filter((b) => Number(b.programme_id) === Number(filterProgram));
+    }
+    // Scope batches to only programs matching active school and department filter
+    const allowedProgramIds = new Set(filteredPrograms.map((p) => Number(p.programme_id)));
+    return batches.filter((b) => allowedProgramIds.has(Number(b.programme_id)));
+  }, [batches, filterProgram, filteredPrograms]);
 
   const filteredSections = useMemo(() => {
-    if (filterBatch === "ALL") return sections;
-    return sections.filter((s) => Number(s.batch_id) === Number(filterBatch));
-  }, [sections, filterBatch]);
+    if (filterBatch !== "ALL") {
+      return sections.filter((s) => Number(s.batch_id) === Number(filterBatch));
+    }
+    // Scope sections to only batches matching active hierarchy filter
+    const allowedBatchIds = new Set(filteredBatches.map((b) => Number(b.batch_id)));
+    return sections.filter((s) => allowedBatchIds.has(Number(s.batch_id)));
+  }, [sections, filterBatch, filteredBatches]);
 
   // Timetable Slots filtered by the 5 tiers + Day
   const filteredTimetableSlots = useMemo(() => {
@@ -669,6 +679,7 @@ export function AcademicsManagementView({ token }) {
   // -------------------------------------------------------------
   const handleOpenCreateSlot = () => {
     setEditingSlot(null);
+    const today = new Date().toISOString().split("T")[0];
     setSlotForm({
       section_id: sections[0]?.section_id || "",
       faculty_id: facultyList[0]?.faculty_id || "",
@@ -676,6 +687,8 @@ export function AcademicsManagementView({ token }) {
       day_of_week: 1,
       start_time: "09:00:00",
       end_time: "10:00:00",
+      effective_from: today,
+      effective_to: "",
       is_active: 1,
     });
     setFormError("");
@@ -684,6 +697,7 @@ export function AcademicsManagementView({ token }) {
 
   const handleOpenEditSlot = (row) => {
     setEditingSlot(row);
+    const today = new Date().toISOString().split("T")[0];
     setSlotForm({
       section_id: row.section_id || "",
       faculty_id: row.faculty_id || "",
@@ -691,6 +705,8 @@ export function AcademicsManagementView({ token }) {
       day_of_week: row.day_of_week || 1,
       start_time: row.start_time ? row.start_time.slice(0, 8) : "09:00:00",
       end_time: row.end_time ? row.end_time.slice(0, 8) : "10:00:00",
+      effective_from: row.effective_from ? String(row.effective_from).slice(0, 10) : today,
+      effective_to: row.effective_to ? String(row.effective_to).slice(0, 10) : "",
       is_active: row.is_active ? 1 : 0,
     });
     setFormError("");
@@ -700,13 +716,49 @@ export function AcademicsManagementView({ token }) {
   const handleSaveSlot = async (e) => {
     e.preventDefault();
     setFormError("");
+
+    if (!slotForm.section_id) {
+      setFormError("Please select a student section.");
+      return;
+    }
+    if (!slotForm.faculty_id) {
+      setFormError("Please assign a faculty member.");
+      return;
+    }
+    if (!slotForm.classroom_id) {
+      setFormError("Please designate a classroom.");
+      return;
+    }
+    if (!slotForm.effective_from) {
+      setFormError("Effective start date is required.");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const payload = {
+        section_id: Number(slotForm.section_id),
+        faculty_id: Number(slotForm.faculty_id),
+        classroom_id: Number(slotForm.classroom_id),
+        day_of_week: Number(slotForm.day_of_week),
+        start_time:
+          slotForm.start_time.length === 5
+            ? `${slotForm.start_time}:00`
+            : slotForm.start_time,
+        end_time:
+          slotForm.end_time.length === 5
+            ? `${slotForm.end_time}:00`
+            : slotForm.end_time,
+        effective_from: slotForm.effective_from,
+        effective_to: slotForm.effective_to ? slotForm.effective_to : null,
+        is_active: Number(slotForm.is_active),
+      };
+
       if (editingSlot) {
-        await updateTimetableSlot(token, editingSlot.slot_id, slotForm);
+        await updateTimetableSlot(token, editingSlot.slot_id, payload);
         setActionSuccess("Timetable slot updated successfully.");
       } else {
-        await createTimetableSlot(token, slotForm);
+        await createTimetableSlot(token, payload);
         setActionSuccess("Timetable slot allocated successfully.");
       }
       setIsSlotModalOpen(false);
@@ -1123,6 +1175,7 @@ export function AcademicsManagementView({ token }) {
     {
       header: "Day & Time",
       key: "schedule",
+      className: "w-32",
       render: (row) => {
         const dayObj = DAYS_OF_WEEK.find((d) => d.id === Number(row.day_of_week));
         return (
@@ -1138,6 +1191,8 @@ export function AcademicsManagementView({ token }) {
     {
       header: "Subject & Curriculum",
       key: "subject",
+      wrap: true,
+      className: "min-w-[180px] max-w-[260px]",
       render: (row) => (
         <div>
           <span className="font-mono text-xs font-bold text-green-800 bg-green-50 px-2 py-0.5 rounded">
@@ -1150,6 +1205,8 @@ export function AcademicsManagementView({ token }) {
     {
       header: "Academic Hierarchy",
       key: "hierarchy",
+      wrap: true,
+      className: "min-w-[200px] max-w-[280px]",
       render: (row) => (
         <div className="text-xs">
           <div className="font-bold text-gray-900">
@@ -1165,6 +1222,7 @@ export function AcademicsManagementView({ token }) {
     {
       header: "Faculty & Classroom",
       key: "assigned",
+      className: "min-w-[150px]",
       render: (row) => (
         <div className="text-xs">
           <div className="font-semibold text-gray-800">{row.faculty_name}</div>
@@ -1177,17 +1235,21 @@ export function AcademicsManagementView({ token }) {
     {
       header: "Status",
       key: "is_active",
+      className: "w-24",
       render: (row) => <Badge status={row.is_active ? "ACTIVE" : "INACTIVE"} />,
     },
     {
       header: "Actions",
       key: "actions",
+      align: "right",
+      className: "w-20 text-right",
       render: (row) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => handleOpenEditSlot(row)}
             className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-green-800"
+            title="Edit Slot"
           >
             <PencilSquareIcon className="h-4 w-4" />
           </button>
@@ -1196,6 +1258,7 @@ export function AcademicsManagementView({ token }) {
               type="button"
               onClick={() => handleDeleteSlot(row)}
               className="rounded-md p-1 text-gray-500 hover:bg-red-50 hover:text-red-700"
+              title="Remove Slot"
             >
               <TrashIcon className="h-4 w-4" />
             </button>
@@ -1207,23 +1270,85 @@ export function AcademicsManagementView({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header & Primary Action */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-            Hierarchical Academics & Timetable Management
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage academic structure: School ➔ Department ➔ Program ➔ Batch ➔ Section ➔ Timetable.
-          </p>
+      {actionSuccess && <Alert type="success" message={actionSuccess} />}
+      {error && <Alert type="error" message={error} onClose={() => setError("")} />}
+
+      {/* Main Navigation Tabs & Contextual Primary Action */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-1">
+        <div className="flex overflow-x-auto space-x-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("timetable")}
+            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+              activeTab === "timetable"
+                ? "border-green-800 text-green-800"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+            }`}
+          >
+            <CalendarDaysIcon className="h-4 w-4" />
+            Timetable Schedule ({timetableSlots.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("sections")}
+            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+              activeTab === "sections"
+                ? "border-green-800 text-green-800"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+            }`}
+          >
+            <UserGroupIcon className="h-4 w-4" />
+            Sections ({sections.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("offerings")}
+            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+              activeTab === "offerings"
+                ? "border-green-800 text-green-800"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+            }`}
+          >
+            <AcademicCapIcon className="h-4 w-4" />
+            Course Offerings ({offerings.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("subjects")}
+            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+              activeTab === "subjects"
+                ? "border-green-800 text-green-800"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+            }`}
+          >
+            <BookOpenIcon className="h-4 w-4" />
+            Subjects ({subjects.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("hierarchy")}
+            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+              activeTab === "hierarchy"
+                ? "border-green-800 text-green-800"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+            }`}
+          >
+            <BuildingLibraryIcon className="h-4 w-4" />
+            Academic Structure ({schools.length} Schools / {programs.length} Programs / {batches.length} Batches)
+          </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Primary Contextual Action Button */}
+        <div className="flex items-center gap-2 pb-2 sm:pb-0 shrink-0">
           {activeTab === "hierarchy" && hierarchySubTab === "schools" && (
             <button
               type="button"
               onClick={handleOpenCreateSchool}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Add School
             </button>
@@ -1233,7 +1358,7 @@ export function AcademicsManagementView({ token }) {
             <button
               type="button"
               onClick={handleOpenCreateProgram}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Add Program
             </button>
@@ -1243,7 +1368,7 @@ export function AcademicsManagementView({ token }) {
             <button
               type="button"
               onClick={handleOpenCreateBatch}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Create Batch
             </button>
@@ -1253,7 +1378,7 @@ export function AcademicsManagementView({ token }) {
             <button
               type="button"
               onClick={handleOpenCreateSubject}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Add Subject
             </button>
@@ -1263,7 +1388,7 @@ export function AcademicsManagementView({ token }) {
             <button
               type="button"
               onClick={handleOpenCreateOffering}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Create Offering
             </button>
@@ -1273,7 +1398,7 @@ export function AcademicsManagementView({ token }) {
             <button
               type="button"
               onClick={handleOpenCreateSection}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Add Section
             </button>
@@ -1283,83 +1408,12 @@ export function AcademicsManagementView({ token }) {
             <button
               type="button"
               onClick={handleOpenCreateSlot}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               <PlusIcon className="h-4 w-4" /> Allocate Slot
             </button>
           )}
         </div>
-      </div>
-
-      {actionSuccess && <Alert type="success" message={actionSuccess} />}
-      {error && <Alert type="error" message={error} />}
-
-      {/* Main Navigation Tabs */}
-      <div className="flex border-b border-gray-200 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab("timetable")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition ${
-            activeTab === "timetable"
-              ? "border-green-800 text-green-800"
-              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-          }`}
-        >
-          <CalendarDaysIcon className="h-4 w-4" />
-          Timetable Schedule ({timetableSlots.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("sections")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition ${
-            activeTab === "sections"
-              ? "border-green-800 text-green-800"
-              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-          }`}
-        >
-          <UserGroupIcon className="h-4 w-4" />
-          Sections ({sections.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("offerings")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition ${
-            activeTab === "offerings"
-              ? "border-green-800 text-green-800"
-              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-          }`}
-        >
-          <AcademicCapIcon className="h-4 w-4" />
-          Course Offerings ({offerings.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("subjects")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition ${
-            activeTab === "subjects"
-              ? "border-green-800 text-green-800"
-              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-          }`}
-        >
-          <BookOpenIcon className="h-4 w-4" />
-          Subjects ({subjects.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("hierarchy")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition ${
-            activeTab === "hierarchy"
-              ? "border-green-800 text-green-800"
-              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-          }`}
-        >
-          <BuildingLibraryIcon className="h-4 w-4" />
-          Academic Structure ({schools.length} Schools / {programs.length} Programs / {batches.length} Batches)
-        </button>
       </div>
 
       {/* Tab Panels */}
@@ -1529,7 +1583,23 @@ export function AcademicsManagementView({ token }) {
               columns={slotColumns}
               searchable
               searchPlaceholder="Search timetable slots by subject, room, faculty, or section..."
-              emptyMessage="No timetable slots found matching hierarchical filters."
+              emptyMessage="No timetable slots found matching the selected hierarchical filters."
+              emptyAction={
+                (filterSchool !== "ALL" ||
+                  filterDepartment !== "ALL" ||
+                  filterProgram !== "ALL" ||
+                  filterBatch !== "ALL" ||
+                  filterSection !== "ALL" ||
+                  dayFilter !== "ALL") && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-800 bg-white px-3 py-1.5 text-xs font-semibold text-green-800 shadow-xs hover:bg-green-50 transition"
+                  >
+                    Reset Hierarchy Filters
+                  </button>
+                )
+              }
             />
           </div>
         ) : activeTab === "sections" ? (
@@ -2205,125 +2275,188 @@ export function AcademicsManagementView({ token }) {
         isOpen={isSlotModalOpen}
         onClose={() => setIsSlotModalOpen(false)}
         title={editingSlot ? "Edit Timetable Slot" : "Allocate Timetable Slot"}
-        maxWidth="max-w-md"
+        maxWidth="max-w-xl"
       >
         <form onSubmit={handleSaveSlot} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
 
-          <div>
-            <label className="block text-xs font-semibold uppercase text-gray-700">
-              Student Section <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              value={slotForm.section_id}
-              onChange={(e) => setSlotForm({ ...slotForm, section_id: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-            >
-              {sections.map((sec) => (
-                <option key={sec.section_id} value={sec.section_id}>
-                  Sec {sec.section_code} • {sec.subject_code} • {sec.batch_label ? `Batch ${sec.batch_label}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase text-gray-700">
-              Assigned Faculty <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              value={slotForm.faculty_id}
-              onChange={(e) => setSlotForm({ ...slotForm, faculty_id: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-            >
-              {facultyList.map((f) => (
-                <option key={f.faculty_id} value={f.faculty_id}>
-                  {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase text-gray-700">
-              Designated Classroom <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              value={slotForm.classroom_id}
-              onChange={(e) => setSlotForm({ ...slotForm, classroom_id: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-            >
-              {classroomList.map((c) => (
-                <option key={c.classroom_id} value={c.classroom_id}>
-                  Room {c.room_no} ({c.block_name || `Block ${c.block_id}`})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase text-gray-700">
-              Day of Week <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={slotForm.day_of_week}
-              onChange={(e) => setSlotForm({ ...slotForm, day_of_week: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-            >
-              {DAYS_OF_WEEK.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          {/* Group 1: Target Course & Section */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-green-900">
+              1. Academic Course & Section
+            </h4>
             <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Start Time <span className="text-red-500">*</span>
+              <label className="block text-xs font-semibold text-gray-700">
+                Student Section <span className="text-red-500">*</span>
               </label>
-              <input
-                type="time"
-                step="60"
+              <select
                 required
-                value={slotForm.start_time}
-                onChange={(e) => setSlotForm({ ...slotForm, start_time: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                End Time <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="time"
-                step="60"
-                required
-                value={slotForm.end_time}
-                onChange={(e) => setSlotForm({ ...slotForm, end_time: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-              />
+                value={slotForm.section_id}
+                onChange={(e) => setSlotForm({ ...slotForm, section_id: Number(e.target.value) })}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+              >
+                {sections.map((sec) => (
+                  <option key={sec.section_id} value={sec.section_id}>
+                    Sec {sec.section_code} • {sec.subject_code} ({sec.subject_name || ""}) • {sec.batch_label ? `Batch ${sec.batch_label}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Select the target student section for scheduled lectures.
+              </p>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          {/* Group 2: Faculty & Venue Allocation */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-green-900">
+              2. Instructor & Venue Allocation
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Assigned Faculty <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={slotForm.faculty_id}
+                  onChange={(e) => setSlotForm({ ...slotForm, faculty_id: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                >
+                  {facultyList.map((f) => (
+                    <option key={f.faculty_id} value={f.faculty_id}>
+                      {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Designated Classroom <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={slotForm.classroom_id}
+                  onChange={(e) => setSlotForm({ ...slotForm, classroom_id: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                >
+                  {classroomList.map((c) => (
+                    <option key={c.classroom_id} value={c.classroom_id}>
+                      Room {c.room_no} ({c.block_name || `Block ${c.block_id}`})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Group 3: Schedule Timing */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-green-900">
+              3. Weekly Schedule & Timing
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Day of Week <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={slotForm.day_of_week}
+                  onChange={(e) => setSlotForm({ ...slotForm, day_of_week: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                >
+                  {DAYS_OF_WEEK.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Start Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  step="60"
+                  required
+                  value={slotForm.start_time}
+                  onChange={(e) => setSlotForm({ ...slotForm, start_time: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  End Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  step="60"
+                  required
+                  value={slotForm.end_time}
+                  onChange={(e) => setSlotForm({ ...slotForm, end_time: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Group 4: Term Validity Window */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-green-900">
+              4. Term Validity Window
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Effective Start Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={slotForm.effective_from}
+                  onChange={(e) => setSlotForm({ ...slotForm, effective_from: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Beginning date for this lecture timetable slot.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Effective End Date <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={slotForm.effective_to}
+                  onChange={(e) => setSlotForm({ ...slotForm, effective_to: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Leave blank for whole semester duration.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
             <button
               type="button"
               onClick={() => setIsSlotModalOpen(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50"
+              className="rounded-lg bg-green-800 px-5 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50 focus:outline-none"
             >
-              {submitting ? "Saving..." : editingSlot ? "Save Changes" : "Allocate Slot"}
+              {submitting ? "Saving Slot..." : editingSlot ? "Save Changes" : "Allocate Slot"}
             </button>
           </div>
         </form>

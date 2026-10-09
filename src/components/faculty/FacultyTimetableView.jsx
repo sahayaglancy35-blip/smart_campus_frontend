@@ -70,15 +70,10 @@ export function FacultyTimetableView({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-            My Teaching Schedule
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            View assigned lectures, tutorial slots, and designated classroom facilities.
-          </p>
+      {/* Day Selector Toolbar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Showing Schedule for: <strong className="text-green-800 normal-case text-sm font-bold">{currentDayName}</strong>
         </div>
 
         {/* Day Selector */}

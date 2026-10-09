@@ -295,18 +295,8 @@ export function FacultySessionsView({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-          Class Attendance Sessions
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage your scheduled classes, initiate live attendance, and record student attendance rosters.
-        </p>
-      </div>
-
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
-      {error && <Alert type="error" message={error} />}
+      {error && <Alert type="error" message={error} onClose={() => setError("")} />}
 
       {/* Sessions Table */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-xs">
