@@ -5,6 +5,7 @@ import {
   updateDepartment,
   deleteDepartment,
 } from "../../api/admin";
+import { getSchools } from "../../api/academics";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
 import Modal from "../common/Modal";
@@ -15,10 +16,13 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ExclamationTriangleIcon,
+  BuildingLibraryIcon,
 } from "@heroicons/react/24/outline";
 
 export function DepartmentManagementView({ token }) {
   const [departments, setDepartments] = useState([]);
+  const [schools, setSchools] = useState([]);
+  const [selectedSchoolFilter, setSelectedSchoolFilter] = useState("ALL");
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
@@ -32,7 +36,7 @@ export function DepartmentManagementView({ token }) {
   const [formData, setFormData] = useState({
     name: "",
     code: "",
-    school_id: 1,
+    school_id: "",
     is_active: 1,
   });
 
@@ -42,11 +46,15 @@ export function DepartmentManagementView({ token }) {
     if (!token) return;
     const controller = new AbortController();
 
-    async function loadDepts() {
+    async function loadData() {
       try {
         setError("");
-        const result = await getDepartments(token, controller.signal);
-        setDepartments(Array.isArray(result?.data) ? result.data : []);
+        const [deptRes, schoolRes] = await Promise.all([
+          getDepartments(token, controller.signal),
+          getSchools(token, null, controller.signal).catch(() => ({ data: [] })),
+        ]);
+        setDepartments(Array.isArray(deptRes?.data) ? deptRes.data : []);
+        setSchools(Array.isArray(schoolRes?.data) ? schoolRes.data : []);
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Failed to load departments.");
@@ -58,7 +66,7 @@ export function DepartmentManagementView({ token }) {
       }
     }
 
-    loadDepts();
+    loadData();
     return () => controller.abort();
   }, [token, reloadTrigger]);
 
@@ -66,7 +74,7 @@ export function DepartmentManagementView({ token }) {
     setFormData({
       name: "",
       code: "",
-      school_id: 1,
+      school_id: schools[0]?.school_id || 1,
       is_active: 1,
     });
     setFormError("");
@@ -78,7 +86,7 @@ export function DepartmentManagementView({ token }) {
     setFormData({
       name: dept.name || "",
       code: dept.code || "",
-      school_id: dept.school_id || 1,
+      school_id: dept.school_id || (schools[0]?.school_id || 1),
       is_active: dept.is_active ? 1 : 0,
     });
     setFormError("");
@@ -93,10 +101,13 @@ export function DepartmentManagementView({ token }) {
       if (!formData.name.trim()) {
         throw new Error("Department name is required.");
       }
+      if (!formData.school_id) {
+        throw new Error("Please select a valid school.");
+      }
 
       await createDepartment(token, {
         ...formData,
-        school_id: Number(formData.school_id) || 1,
+        school_id: Number(formData.school_id),
         is_active: Number(formData.is_active),
       });
 
@@ -118,9 +129,13 @@ export function DepartmentManagementView({ token }) {
     setSubmitting(true);
 
     try {
+      if (!formData.name.trim()) {
+        throw new Error("Department name is required.");
+      }
+
       await updateDepartment(token, editingDept.department_id, {
         ...formData,
-        school_id: Number(formData.school_id) || 1,
+        school_id: Number(formData.school_id),
         is_active: Number(formData.is_active),
       });
 
@@ -135,23 +150,29 @@ export function DepartmentManagementView({ token }) {
     }
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleDelete = async () => {
     if (!deletingDept) return;
     setSubmitting(true);
 
     try {
       await deleteDepartment(token, deletingDept.department_id);
-      setDeletingDept(null);
-      setActionSuccess("Department deleted successfully.");
+      setActionSuccess("Department deactivated successfully.");
       setTimeout(() => setActionSuccess(""), 4000);
       setReloadTrigger((prev) => prev + 1);
+      setDeletingDept(null);
     } catch (err) {
-      setError(err.message || "Cannot delete department referenced by faculty or programmes.");
+      setError(err.message || "Failed to deactivate department.");
+      setTimeout(() => setError(""), 5000);
       setDeletingDept(null);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const filteredDepartments = departments.filter((d) => {
+    if (selectedSchoolFilter === "ALL") return true;
+    return Number(d.school_id) === Number(selectedSchoolFilter);
+  });
 
   const columns = [
     {
@@ -171,10 +192,19 @@ export function DepartmentManagementView({ token }) {
       ),
     },
     {
-      header: "School ID",
-      key: "school_id",
+      header: "School",
+      key: "school",
       render: (row) => (
-        <span className="text-xs text-gray-600">School #{row.school_id}</span>
+        <div>
+          <span className="font-semibold text-gray-800">
+            {row.school_name || `School #${row.school_id}`}
+          </span>
+          {row.school_code && (
+            <span className="ml-1 text-xs text-gray-500 font-mono">
+              ({row.school_code})
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -212,6 +242,45 @@ export function DepartmentManagementView({ token }) {
 
   return (
     <div className="space-y-6">
+      {/* Header and School Filter */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
+            Department Management
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Manage academic departments and constituent schools across Joy University.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <BuildingLibraryIcon className="h-4 w-4 text-gray-400" />
+            <select
+              value={selectedSchoolFilter}
+              onChange={(e) => setSelectedSchoolFilter(e.target.value)}
+              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-xs focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              <option value="ALL">All Schools ({schools.length})</option>
+              {schools.map((s) => (
+                <option key={s.school_id} value={s.school_id}>
+                  {s.code} - {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
+          >
+            <PlusIcon className="h-4 w-4" />
+            New Department
+          </button>
+        </div>
+      </div>
+
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
       {error && <Alert type="error" message={error} onClose={() => setError("")} />}
 
@@ -220,20 +289,10 @@ export function DepartmentManagementView({ token }) {
       ) : (
         <DataTable
           columns={columns}
-          data={departments}
+          data={filteredDepartments}
           searchPlaceholder="Search department by name or code..."
           pageSize={10}
-          emptyMessage="No departments found."
-          actions={
-            <button
-              type="button"
-              onClick={handleOpenCreate}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
-            >
-              <PlusIcon className="h-4 w-4" />
-              New Department
-            </button>
-          }
+          emptyMessage="No departments found matching filter."
         />
       )}
 
@@ -274,36 +333,39 @@ export function DepartmentManagementView({ token }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                School ID <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={formData.school_id}
-                onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Status
-              </label>
-              <select
-                value={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              >
-                <option value={1}>Active</option>
-                <option value={0}>Inactive</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Parent School <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
+              value={formData.school_id}
+              onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              {schools.map((s) => (
+                <option key={s.school_id} value={s.school_id}>
+                  {s.code} - {s.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Status
+            </label>
+            <select
+              value={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              <option value={1}>Active</option>
+              <option value={0}>Inactive</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setIsCreateOpen(false)}
@@ -316,7 +378,7 @@ export function DepartmentManagementView({ token }) {
               disabled={submitting}
               className="rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50"
             >
-              {submitting ? "Creating..." : "Create Department"}
+              {submitting ? "Saving..." : "Create Department"}
             </button>
           </div>
         </form>
@@ -357,35 +419,39 @@ export function DepartmentManagementView({ token }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                School ID
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={formData.school_id}
-                onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Status
-              </label>
-              <select
-                value={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              >
-                <option value={1}>Active</option>
-                <option value={0}>Inactive</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Parent School <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
+              value={formData.school_id}
+              onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              {schools.map((s) => (
+                <option key={s.school_id} value={s.school_id}>
+                  {s.code} - {s.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Status
+            </label>
+            <select
+              value={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              <option value={1}>Active</option>
+              <option value={0}>Inactive</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setEditingDept(null)}
@@ -404,40 +470,39 @@ export function DepartmentManagementView({ token }) {
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete / Deactivate Confirmation */}
       <Modal
         isOpen={Boolean(deletingDept)}
         onClose={() => setDeletingDept(null)}
-        title="Confirm Department Deletion"
-        maxWidth="max-w-sm"
+        title="Deactivate Department"
+        maxWidth="max-w-md"
       >
-        <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
-            <ExclamationTriangleIcon className="h-6 w-6" />
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-red-600">
+            <ExclamationTriangleIcon className="h-6 w-6 shrink-0" />
+            <p className="text-sm font-medium text-gray-800">
+              Are you sure you want to deactivate{" "}
+              <strong>{deletingDept?.name}</strong>?
+            </p>
           </div>
-          <h4 className="mt-3 text-base font-bold text-gray-900">
-            Delete {deletingDept?.name}?
-          </h4>
-          <p className="mt-2 text-xs text-gray-500">
-            This department will be permanently removed. If foreign key relationships exist,
-            the database will reject deletion.
+          <p className="text-xs text-gray-500">
+            Deactivating a department flags it as inactive while preserving historical curriculum and attendance records.
           </p>
-
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setDeletingDept(null)}
-              className="w-1/2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="button"
               disabled={submitting}
-              onClick={handleDeleteConfirm}
-              className="w-1/2 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+              onClick={handleDelete}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {submitting ? "Deleting..." : "Delete"}
+              {submitting ? "Deactivating..." : "Deactivate"}
             </button>
           </div>
         </div>

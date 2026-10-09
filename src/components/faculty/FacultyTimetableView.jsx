@@ -147,6 +147,11 @@ export function FacultyTimetableView({ token }) {
                     <span>
                       Section:{" "}
                       <strong className="text-gray-900">{slot.section_code}</strong>
+                      {slot.batch_label && (
+                        <span className="ml-1 text-gray-500">
+                          ({slot.programme_code || slot.programme_name ? `${slot.programme_code || slot.programme_name} • ` : ""}Batch {slot.batch_label})
+                        </span>
+                      )}
                     </span>
                   </div>
 
