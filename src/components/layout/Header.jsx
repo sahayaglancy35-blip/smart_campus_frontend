@@ -1,9 +1,13 @@
+import { useState } from "react";
 import {
   AcademicCapIcon,
   Bars3Icon,
 } from "@heroicons/react/24/outline";
+import ProfileModal from "../common/ProfileModal";
 
 export function Header({ user, onToggleSidebar, activeTitle }) {
+  const [showProfile, setShowProfile] = useState(false);
+
   const roleDisplay = {
     STUDENT: "Student",
     FACULTY: "Faculty Member",
@@ -56,11 +60,25 @@ export function Header({ user, onToggleSidebar, activeTitle }) {
               {roleDisplay[role] || role}
             </p>
           </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 ring-2 ring-green-600/20">
+
+          {/* Clicking the avatar opens the profile details */}
+          <button
+            type="button"
+            onClick={() => setShowProfile(true)}
+            aria-label="View my profile"
+            title="View my profile"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 ring-2 ring-green-600/20 transition hover:scale-105 hover:ring-green-600/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+          >
             {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-          </div>
+          </button>
         </div>
       </div>
+
+      <ProfileModal
+        isOpen={showProfile}
+        user={user}
+        onClose={() => setShowProfile(false)}
+      />
     </header>
   );
 }
