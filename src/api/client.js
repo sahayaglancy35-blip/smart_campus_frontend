@@ -1,6 +1,103 @@
 import { API_BASE_URL } from "./endpoints";
 
 /**
+ * Safely parse response body whether JSON, plain text, or unexpected HTML.
+ */
+async function parseResponseBody(response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const rawText = await response.text();
+    if (!rawText || !rawText.trim()) {
+      return null;
+    }
+
+    const isHtml =
+      contentType.includes("text/html") ||
+      rawText.trim().startsWith("<!DOCTYPE") ||
+      rawText.trim().startsWith("<html");
+
+    if (isHtml) {
+      const preMatch = rawText.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+      if (preMatch && preMatch[1]) {
+        const cleanPre = preMatch[1].replace(/<[^>]+>/g, "").trim();
+        return { message: cleanPre, rawHtml: true };
+      }
+
+      const titleMatch = rawText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        const cleanTitle = titleMatch[1].replace(/<[^>]+>/g, "").trim();
+        return { message: cleanTitle, rawHtml: true };
+      }
+
+      return {
+        message: `Server returned unexpected HTML response (${response.status})`,
+        rawHtml: true,
+      };
+    }
+
+    return { message: rawText.trim() };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build a user-friendly error message based on response data and status.
+ */
+function resolveErrorMessage(data, status, method, cleanEndpoint) {
+  let extracted = data?.message || data?.error;
+
+  if (typeof extracted === "string") {
+    if (
+      extracted.includes("<!DOCTYPE") ||
+      extracted.includes("<html") ||
+      extracted.includes("<body")
+    ) {
+      extracted = null;
+    }
+  } else {
+    extracted = null;
+  }
+
+  if (extracted) {
+    if (extracted.startsWith("Cannot ")) {
+      return `Endpoint not supported on server: ${extracted}`;
+    }
+    return extracted;
+  }
+
+  switch (status) {
+    case 400:
+      return "The request contained invalid or incomplete parameters.";
+    case 401:
+      return "Your session has expired or authentication is required. Please sign in again.";
+    case 403:
+      return "You do not have permission to perform this action.";
+    case 404:
+      return `The requested resource or endpoint was not found (${cleanEndpoint}).`;
+    case 409:
+      return "A conflict occurred with an existing record. Please review your input.";
+    case 500:
+      return "An internal server error occurred. Please try again or contact the administrator.";
+    case 502:
+    case 503:
+    case 504:
+      return "The server is temporarily unavailable or gateway timed out. Please try again.";
+    default:
+      return `Request failed with status ${status}`;
+  }
+}
+
+/**
  * Universal API client for Joy University Smart Campus ERP
  */
 export async function apiClient(endpoint, options = {}) {
@@ -38,27 +135,22 @@ export async function apiClient(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, config);
-
-    let data;
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      data = await response.json();
-    } else {
-      data = { message: await response.text() };
-    }
+    const data = await parseResponseBody(response);
 
     if (!response.ok) {
-      const errorMessage =
-        data?.message ||
-        data?.error ||
-        `Request failed with status ${response.status}`;
+      const errorMessage = resolveErrorMessage(
+        data,
+        response.status,
+        method,
+        cleanEndpoint,
+      );
       const error = new Error(errorMessage);
       error.status = response.status;
       error.data = data;
       throw error;
     }
 
-    return data;
+    return data || { success: true };
   } catch (err) {
     if (err.name === "AbortError") {
       throw err;

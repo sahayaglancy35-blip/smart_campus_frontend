@@ -10,6 +10,7 @@ import {
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
 import Modal from "../common/Modal";
+import ConfirmDialog from "../common/ConfirmDialog";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import {
@@ -37,6 +38,10 @@ export function FacultySessionsView({ token }) {
   const [overrideReason, setOverrideReason] = useState("FACULTY_OVERRIDE");
   const [overrideNote, setOverrideNote] = useState("");
   const [overrideSubmitting, setOverrideSubmitting] = useState(false);
+
+  // Application Confirmation Modal State
+  const [finalizeTarget, setFinalizeTarget] = useState(null);
+  const [finalizeLoading, setFinalizeLoading] = useState(false);
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
@@ -79,21 +84,26 @@ export function FacultySessionsView({ token }) {
     }
   };
 
-  const handleFinalizeSession = async (session) => {
-    if (!window.confirm("Are you sure you want to finalize and close this attendance session?")) {
-      return;
-    }
+  const handleFinalizeSession = (session) => {
+    setFinalizeTarget(session);
+  };
 
+  const executeFinalizeSession = async () => {
+    if (!finalizeTarget) return;
+    setFinalizeLoading(true);
     try {
       setError("");
       setActionSuccess("");
-      await finalizeFacultyAttendanceSession(token, session.session_id);
+      await finalizeFacultyAttendanceSession(token, finalizeTarget.session_id);
       setActionSuccess(
-        `Session #${session.session_id} finalized and closed successfully.`,
+        `Session #${finalizeTarget.session_id} finalized and closed successfully.`,
       );
+      setFinalizeTarget(null);
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       setError(err.message || "Failed to finalize attendance session.");
+    } finally {
+      setFinalizeLoading(false);
     }
   };
 
@@ -295,18 +305,8 @@ export function FacultySessionsView({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-          Class Attendance Sessions
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage your scheduled classes, initiate live attendance, and record student attendance rosters.
-        </p>
-      </div>
-
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
-      {error && <Alert type="error" message={error} />}
+      {error && <Alert type="error" message={error} onClose={() => setError("")} />}
 
       {/* Sessions Table */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-xs">
@@ -541,6 +541,33 @@ export function FacultySessionsView({ token }) {
           </div>
         </form>
       </Modal>
+
+      {/* Finalize Session Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(finalizeTarget)}
+        onClose={() => setFinalizeTarget(null)}
+        onConfirm={executeFinalizeSession}
+        title="Finalize Attendance Session"
+        message="Are you sure you want to finalize and close this attendance session? Once finalized, the session will be marked as finalized and attendance records will be permanently locked."
+        itemDetails={
+          finalizeTarget
+            ? [
+                { label: "Session ID", value: `#${finalizeTarget.session_id}` },
+                {
+                  label: "Course",
+                  value: `${finalizeTarget.subject_code} - ${finalizeTarget.subject_name}`,
+                },
+                {
+                  label: "Date",
+                  value: String(finalizeTarget.session_date).slice(0, 10),
+                },
+              ]
+            : null
+        }
+        confirmText="Finalize Session"
+        confirmVariant="danger"
+        loading={finalizeLoading}
+      />
     </div>
   );
 }

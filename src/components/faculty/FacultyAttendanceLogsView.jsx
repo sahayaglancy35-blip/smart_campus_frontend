@@ -153,17 +153,7 @@ export function FacultyAttendanceLogsView({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-          Teaching Attendance Audit Logs
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Review historical lecture records, student presence statistics, and attendance reconciliation summaries.
-        </p>
-      </div>
-
-      {error && <Alert type="error" message={error} />}
+      {error && <Alert type="error" message={error} onClose={() => setError("")} />}
 
       {/* Summary Stats */}
       {summary?.overall && (

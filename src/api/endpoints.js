@@ -34,7 +34,11 @@ export const ENDPOINTS = {
   ADMIN_DASHBOARD_STATS: import.meta.env.VITE_ADMIN_DASHBOARD_STATS_ENDPOINT || "/admin/dashboard-stats",
   ADMIN_STUDENTS: import.meta.env.VITE_ADMIN_STUDENTS_ENDPOINT || "/students",
   ADMIN_FACULTY: import.meta.env.VITE_ADMIN_FACULTY_ENDPOINT || "/staff/t",
+  ADMIN_SCHOOLS: import.meta.env.VITE_ADMIN_SCHOOLS_ENDPOINT || "/schools",
   ADMIN_DEPARTMENTS: import.meta.env.VITE_ADMIN_DEPARTMENTS_ENDPOINT || "/departments",
+  ADMIN_PROGRAMS: import.meta.env.VITE_ADMIN_PROGRAMS_ENDPOINT || "/programs",
+  ADMIN_BATCHES: import.meta.env.VITE_ADMIN_BATCHES_ENDPOINT || "/batches",
+  ADMIN_DEGREES: import.meta.env.VITE_ADMIN_DEGREES_ENDPOINT || "/degrees",
   ADMIN_BLOCKS: import.meta.env.VITE_ADMIN_BLOCKS_ENDPOINT || "/blocks",
   ADMIN_CLASSROOMS: import.meta.env.VITE_ADMIN_CLASSROOMS_ENDPOINT || "/classrooms",
   ADMIN_SUBJECTS: import.meta.env.VITE_ADMIN_SUBJECTS_ENDPOINT || "/subjects",
@@ -45,17 +49,3 @@ export const ENDPOINTS = {
     import.meta.env.VITE_ADMIN_ATTENDANCE_SESSIONS_ENDPOINT || "/attendance/sessions",
 };
 
-export const DEMO_CREDENTIALS = {
-  Student: {
-    userId: import.meta.env.VITE_DEMO_STUDENT_USERNAME || "J26AIM001",
-    password: import.meta.env.VITE_DEMO_STUDENT_PASSWORD || "Student@123",
-  },
-  Staff: {
-    userId: import.meta.env.VITE_DEMO_FACULTY_USERNAME || "FAC001",
-    password: import.meta.env.VITE_DEMO_FACULTY_PASSWORD || "Faculty@123",
-  },
-  Admin: {
-    userId: import.meta.env.VITE_DEMO_ADMIN_USERNAME || "admin",
-    password: import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "Admin@123",
-  },
-};
