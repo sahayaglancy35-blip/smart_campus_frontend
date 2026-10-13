@@ -46,6 +46,29 @@ const PAGE_TITLES = {
   "faculty-attendance": "Teaching Attendance Logs",
 };
 
+const PAGE_SUBTITLES = {
+  // Student Subtitles
+  dashboard: "Personalized academic performance and daily schedule overview.",
+  timetable: "Weekly class timetable and lecture hall assignments.",
+  summary: "Institutional attendance compliance and course-wise percentages.",
+  "attendance-logs": "Granular attendance audit logs and session history.",
+  "absent-details": "Records of missed class sessions and attendance alerts.",
+  courses: "Active enrolled curriculum, course coordinators, and academic credits.",
+
+  // Admin Subtitles
+  "admin-dashboard": "Institutional statistics, registry metrics, and operational control.",
+  students: "Manage student enrollments, academic cohorts, and profiles.",
+  faculty: "Manage academic faculty, staff designations, and departmental affiliations.",
+  departments: "Configure institutional faculties, academic departments, codes, and operational status.",
+  infrastructure: "Manage campus blocks, lecture halls, smart classrooms, and labs.",
+  academics: "Manage constituent schools, programs, batches, course offerings, and section schedules.",
+  sessions: "Oversee institutional class attendance sessions and roster records.",
+
+  // Faculty Subtitles
+  "faculty-dashboard": "Teaching assignments, upcoming lectures, and attendance operations.",
+  "faculty-attendance": "Audit logs and verified attendance history for your assigned classes.",
+};
+
 export function Dashboard({ user, token, onLogout }) {
   const role = user?.role || "STUDENT";
 
@@ -159,6 +182,7 @@ export function Dashboard({ user, token, onLogout }) {
       onNavigate={setPage}
       onLogout={onLogout}
       pageTitle={PAGE_TITLES[page] || "Joy University ERP"}
+      pageSubtitle={PAGE_SUBTITLES[page] || "Joy University Smart Campus Enterprise Portal"}
     >
       {renderContent()}
     </AppLayout>

@@ -12,6 +12,7 @@ export function DataTable({
   searchPlaceholder = "Search records...",
   pageSize = 10,
   emptyMessage = "No records found.",
+  emptyAction = null,
   actions = null,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -67,7 +68,9 @@ export function DataTable({
               {columns.map((col, idx) => (
                 <th
                   key={col.key || idx}
-                  className={`px-5 py-3.5 ${col.align === "right" ? "text-right" : ""}`}
+                  className={`px-5 py-3.5 ${col.align === "right" ? "text-right" : ""} ${
+                    col.headerClassName || col.className || ""
+                  }`}
                 >
                   {col.header}
                 </th>
@@ -79,9 +82,12 @@ export function DataTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-5 py-8 text-center text-sm text-gray-500"
+                  className="px-5 py-10 text-center text-sm text-gray-500"
                 >
-                  {emptyMessage}
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <p>{emptyMessage}</p>
+                    {emptyAction && <div className="mt-1">{emptyAction}</div>}
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -93,9 +99,9 @@ export function DataTable({
                   {columns.map((col, colIdx) => (
                     <td
                       key={col.key || colIdx}
-                      className={`px-5 py-3.5 whitespace-nowrap ${
-                        col.align === "right" ? "text-right" : ""
-                      }`}
+                      className={`px-5 py-3.5 ${
+                        col.wrap ? "whitespace-normal" : "whitespace-nowrap"
+                      } ${col.align === "right" ? "text-right" : ""} ${col.className || ""}`}
                     >
                       {col.render ? col.render(row) : (row[col.key] ?? "—")}
                     </td>

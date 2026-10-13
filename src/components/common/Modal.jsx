@@ -39,9 +39,9 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`relative w-full ${maxWidth} rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-200 transition-all z-10 my-8`}
+        className={`relative w-full ${maxWidth} max-h-[90vh] flex flex-col rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-200 transition-all z-10 my-auto`}
       >
-        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 pb-4">
           <h3 id="modal-title" className="text-xl font-bold text-gray-900">
             {title}
           </h3>
@@ -54,7 +54,7 @@ export function Modal({
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="mt-4 flex-1 overflow-y-auto pr-1">{children}</div>
       </div>
     </div>
   );

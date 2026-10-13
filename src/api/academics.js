@@ -2,14 +2,144 @@ import apiClient from "./client";
 
 /**
  * Academics Management API Client
- * Interfaces with /api/v1/subjects, /api/v1/course-offerings, /api/v1/sections, /api/v1/timetable
+ * Interfaces with:
+ * - /api/v1/schools
+ * - /api/v1/departments
+ * - /api/v1/programs (or /api/v1/programmes)
+ * - /api/v1/batches
+ * - /api/v1/degrees
+ * - /api/v1/subjects
+ * - /api/v1/course-offerings
+ * - /api/v1/sections
+ * - /api/v1/timetable
  */
+
+function withQuery(endpoint, params) {
+  if (!params) return endpoint;
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, val]) => {
+    if (val !== undefined && val !== null && val !== "") {
+      searchParams.append(key, val);
+    }
+  });
+  const queryString = searchParams.toString();
+  return queryString ? `${endpoint}?${queryString}` : endpoint;
+}
+
+// -------------------------------------------------------------
+// Schools
+// -------------------------------------------------------------
+export async function getSchools(token, params, signal) {
+  return apiClient(withQuery("/schools", params), { token, signal });
+}
+
+export async function getSchoolById(token, id, signal) {
+  return apiClient(`/schools/${id}`, { token, signal });
+}
+
+export async function createSchool(token, data) {
+  return apiClient("/schools", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
+export async function updateSchool(token, id, data) {
+  return apiClient(`/schools/${id}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
+
+export async function deleteSchool(token, id) {
+  return apiClient(`/schools/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// -------------------------------------------------------------
+// Programs / Programmes
+// -------------------------------------------------------------
+export async function getPrograms(token, params, signal) {
+  return apiClient(withQuery("/programs", params), { token, signal });
+}
+
+export async function getProgramById(token, id, signal) {
+  return apiClient(`/programs/${id}`, { token, signal });
+}
+
+export async function createProgram(token, data) {
+  return apiClient("/programs", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
+export async function updateProgram(token, id, data) {
+  return apiClient(`/programs/${id}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
+
+export async function deleteProgram(token, id) {
+  return apiClient(`/programs/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// -------------------------------------------------------------
+// Batches
+// -------------------------------------------------------------
+export async function getBatches(token, params, signal) {
+  return apiClient(withQuery("/batches", params), { token, signal });
+}
+
+export async function getBatchById(token, id, signal) {
+  return apiClient(`/batches/${id}`, { token, signal });
+}
+
+export async function createBatch(token, data) {
+  return apiClient("/batches", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
+export async function updateBatch(token, id, data) {
+  return apiClient(`/batches/${id}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
+
+export async function deleteBatch(token, id) {
+  return apiClient(`/batches/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// -------------------------------------------------------------
+// Degrees
+// -------------------------------------------------------------
+export async function getDegrees(token, signal) {
+  return apiClient("/degrees", { token, signal });
+}
 
 // -------------------------------------------------------------
 // Subjects
 // -------------------------------------------------------------
-export async function getSubjects(token, signal) {
-  return apiClient("/subjects", { token, signal });
+export async function getSubjects(token, params, signal) {
+  return apiClient(withQuery("/subjects", params), { token, signal });
 }
 
 export async function getSubjectById(token, id, signal) {
@@ -42,8 +172,8 @@ export async function deleteSubject(token, id) {
 // -------------------------------------------------------------
 // Course Offerings
 // -------------------------------------------------------------
-export async function getCourseOfferings(token, signal) {
-  return apiClient("/course-offerings", { token, signal });
+export async function getCourseOfferings(token, params, signal) {
+  return apiClient(withQuery("/course-offerings", params), { token, signal });
 }
 
 export async function getCourseOfferingById(token, id, signal) {
@@ -76,8 +206,8 @@ export async function deleteCourseOffering(token, id) {
 // -------------------------------------------------------------
 // Sections
 // -------------------------------------------------------------
-export async function getSections(token, signal) {
-  return apiClient("/sections", { token, signal });
+export async function getSections(token, params, signal) {
+  return apiClient(withQuery("/sections", params), { token, signal });
 }
 
 export async function getSectionById(token, id, signal) {
@@ -110,8 +240,8 @@ export async function deleteSection(token, id) {
 // -------------------------------------------------------------
 // Timetable
 // -------------------------------------------------------------
-export async function getTimetableSlots(token, signal) {
-  return apiClient("/timetable", { token, signal });
+export async function getTimetableSlots(token, params, signal) {
+  return apiClient(withQuery("/timetable", params), { token, signal });
 }
 
 export async function getTimetableSlotById(token, id, signal) {
