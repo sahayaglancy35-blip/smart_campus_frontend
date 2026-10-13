@@ -49,17 +49,3 @@ export const ENDPOINTS = {
     import.meta.env.VITE_ADMIN_ATTENDANCE_SESSIONS_ENDPOINT || "/attendance/sessions",
 };
 
-export const DEMO_CREDENTIALS = {
-  Student: {
-    userId: import.meta.env.VITE_DEMO_STUDENT_USERNAME || "J26AIM001",
-    password: import.meta.env.VITE_DEMO_STUDENT_PASSWORD || "Student@123",
-  },
-  Staff: {
-    userId: import.meta.env.VITE_DEMO_FACULTY_USERNAME || "FAC001",
-    password: import.meta.env.VITE_DEMO_FACULTY_PASSWORD || "Faculty@123",
-  },
-  Admin: {
-    userId: import.meta.env.VITE_DEMO_ADMIN_USERNAME || "admin",
-    password: import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "Admin@123",
-  },
-};

@@ -7,7 +7,6 @@ import {
   EyeSlashIcon,
 } from "@heroicons/react/24/outline";
 import { ROLES, inputClass } from "../constants";
-import { DEMO_CREDENTIALS } from "../api/endpoints";
 
 /* ================================================================
    LOGIN PAGE
@@ -195,21 +194,6 @@ function LoginPage({ onLogin, onForgotPassword, loading = false }) {
             </button>
 
             {/* ---------- Anonymous / Demo Credentials Quick Fill ---------- */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  const creds = DEMO_CREDENTIALS[role];
-                  if (creds) {
-                    setUserId(creds.userId);
-                    setPassword(creds.password);
-                  }
-                }}
-                className="w-full rounded-lg border border-green-200 bg-green-50/70 py-2.5 text-xs font-semibold text-green-800 transition hover:bg-green-100/90 hover:border-green-300 active:bg-green-200 focus-visible:outline-2 focus-visible:outline-green-700"
-              >
-                Auto-Fill Demo Credentials ({role})
-              </button>
-            </div>
           </form>
         </main>
       </div>
