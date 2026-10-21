@@ -26,6 +26,7 @@ export function FacultyAttendanceLogsView({ token }) {
   const [inspectingSession, setInspectingSession] = useState(null);
   const [roster, setRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -62,13 +63,19 @@ export function FacultyAttendanceLogsView({ token }) {
   const handleInspectSession = async (session) => {
     setInspectingSession(session);
     setRoster([]);
+    setRosterError("");
     setRosterLoading(true);
 
     try {
       const res = await fetchFacultyAttendanceRoster(token, session.session_id);
-      setRoster(Array.isArray(res?.data) ? res.data : []);
+      const data =
+        res?.data?.roster ||
+        res?.data?.members ||
+        (Array.isArray(res?.data) ? res.data : []);
+      setRoster(data);
     } catch (err) {
       console.error("Failed to load session roster:", err);
+      setRosterError(err.message || "Failed to load session roster.");
     } finally {
       setRosterLoading(false);
     }
@@ -89,7 +96,7 @@ export function FacultyAttendanceLogsView({ token }) {
       key: "session_date",
       render: (row) => (
         <span className="font-semibold text-gray-900">
-          {row.session_date ? new Date(row.session_date).toLocaleDateString() : "—"}
+          {row.session_date ? String(row.session_date).slice(0, 10) : "—"}
         </span>
       ),
     },
@@ -111,11 +118,7 @@ export function FacultyAttendanceLogsView({ token }) {
     {
       header: "Status",
       key: "status",
-      render: (row) => (
-        <Badge variant={row.status === "OPEN" ? "success" : "secondary"}>
-          {row.status}
-        </Badge>
-      ),
+      render: (row) => <Badge status={row.status} />,
     },
     {
       header: "Present Count",
@@ -219,9 +222,11 @@ export function FacultyAttendanceLogsView({ token }) {
               {inspectingSession?.subject_name}
             </p>
             <p className="text-xs text-gray-500">
-              Date: {inspectingSession?.session_date ? new Date(inspectingSession.session_date).toLocaleDateString() : ""} • Section: {inspectingSession?.section_code} • Room: {inspectingSession?.room_no}
+              Date: {inspectingSession?.session_date ? String(inspectingSession.session_date).slice(0, 10) : ""} • Section: {inspectingSession?.section_code} • Room: {inspectingSession?.room_no}
             </p>
           </div>
+
+          {rosterError && <Alert type="error" message={rosterError} />}
 
           {rosterLoading ? (
             <LoadingSpinner message="Loading attendance records..." />
@@ -231,34 +236,28 @@ export function FacultyAttendanceLogsView({ token }) {
             </p>
           ) : (
             <div className="max-h-96 overflow-y-auto divide-y divide-gray-100 rounded-xl border border-gray-200">
-              {roster.map((student) => (
-                <div
-                  key={student.enrollment_id}
-                  className="flex items-center justify-between p-3 text-sm"
-                >
-                  <div>
-                    <div className="font-mono text-xs font-bold text-gray-900">
-                      {student.register_no}
-                    </div>
-                    <div className="font-semibold text-gray-800">
-                      {student.full_name}
-                    </div>
-                  </div>
-                  <Badge
-                    variant={
-                      student.status === "PRESENT"
-                        ? "success"
-                        : student.status === "LATE"
-                        ? "warning"
-                        : student.status === "ABSENT"
-                        ? "error"
-                        : "secondary"
-                    }
+              {roster.map((student) => {
+                const currentStatus =
+                  student.status ||
+                  student.attendance_status ||
+                  (student.attendance_id ? "PRESENT" : "UNMARKED");
+                return (
+                  <div
+                    key={student.enrollment_id || student.student_id}
+                    className="flex items-center justify-between p-3 text-sm"
                   >
-                    {student.status || "UNMARKED"}
-                  </Badge>
-                </div>
-              ))}
+                    <div>
+                      <div className="font-mono text-xs font-bold text-gray-900">
+                        {student.register_no}
+                      </div>
+                      <div className="font-semibold text-gray-800">
+                        {student.full_name}
+                      </div>
+                    </div>
+                    <Badge status={currentStatus} />
+                  </div>
+                );
+              })}
             </div>
           )}
 

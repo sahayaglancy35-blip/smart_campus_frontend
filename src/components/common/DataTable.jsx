@@ -93,7 +93,7 @@ export function DataTable({
             ) : (
               paginatedData.map((row, rowIdx) => (
                 <tr
-                  key={row.id || row._id || row.student_id || row.faculty_id || rowIdx}
+                  key={row.session_id || row.id || row._id || row.student_id || row.faculty_id || rowIdx}
                   className="transition hover:bg-gray-50/60"
                 >
                   {columns.map((col, colIdx) => (

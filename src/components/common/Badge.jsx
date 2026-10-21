@@ -1,9 +1,26 @@
-export function Badge({ status }) {
-  if (!status) return null;
+export function Badge({ status, variant, children, className = "" }) {
+  const content = children ?? status ?? variant ?? null;
+  if (content === null || content === undefined || content === "") {
+    return null;
+  }
 
-  const normalized = String(status).toUpperCase();
+  // Determine styling key: prioritize status, then variant, then string children
+  const rawKey =
+    status ||
+    variant ||
+    (typeof children === "string" ? children : "");
+  const normalized = String(rawKey).toUpperCase().trim();
 
   const variantStyles = {
+    // Semantic aliases
+    SUCCESS: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    WARNING: "bg-amber-100 text-amber-800 border-amber-200",
+    ERROR: "bg-rose-100 text-rose-800 border-rose-200",
+    DANGER: "bg-rose-100 text-rose-800 border-rose-200",
+    SECONDARY: "bg-gray-100 text-gray-700 border-gray-200",
+    DEFAULT: "bg-gray-100 text-gray-700 border-gray-200",
+    INFO: "bg-sky-100 text-sky-800 border-sky-200",
+
     // Green / Success
     ACTIVE: "bg-green-100 text-green-800 border-green-200",
     PRESENT: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -40,9 +57,9 @@ export function Badge({ status }) {
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${style}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${style} ${className}`}
     >
-      {status}
+      {content}
     </span>
   );
 }

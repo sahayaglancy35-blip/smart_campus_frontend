@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import AppLayout from "./layout/AppLayout";
 
 // Student Views
@@ -79,6 +79,32 @@ export function Dashboard({ user, token, onLogout }) {
   }, [role]);
 
   const [page, setPage] = useState(initialPage);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
+
+  // Automatically refresh when window gains focus or document becomes visible
+  useEffect(() => {
+    const onFocus = () => {
+      setRefreshTrigger((prev) => prev + 1);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setRefreshTrigger((prev) => prev + 1);
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
 
   const renderContent = () => {
     switch (page) {
@@ -181,10 +207,11 @@ export function Dashboard({ user, token, onLogout }) {
       activePage={page}
       onNavigate={setPage}
       onLogout={onLogout}
+      onRefresh={handleRefresh}
       pageTitle={PAGE_TITLES[page] || "Joy University ERP"}
       pageSubtitle={PAGE_SUBTITLES[page] || "Joy University Smart Campus Enterprise Portal"}
     >
-      {renderContent()}
+      <div key={`${page}-${refreshTrigger}`}>{renderContent()}</div>
     </AppLayout>
   );
 }

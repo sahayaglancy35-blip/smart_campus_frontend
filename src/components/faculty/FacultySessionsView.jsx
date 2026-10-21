@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import {
   fetchFacultyAttendanceSessions,
+  createFacultyAttendanceSession,
   startFacultyAttendanceSession,
   finalizeFacultyAttendanceSession,
   fetchFacultyAttendanceRoster,
   markFacultyAttendanceRecord,
-  overrideFacultyAttendanceRecord,
+  updateFacultyAttendanceRecord,
+  fetchFacultyTimetable,
 } from "../../api/faculty";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
@@ -17,8 +19,16 @@ import {
   PlayIcon,
   StopIcon,
   EyeIcon,
-  PencilSquareIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
+
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 export function FacultySessionsView({ token }) {
   const [sessions, setSessions] = useState([]);
@@ -31,13 +41,27 @@ export function FacultySessionsView({ token }) {
   const [roster, setRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState("");
+  const [rosterActionLoading, setRosterActionLoading] = useState(false);
 
-  // Override dialog
-  const [overrideRecord, setOverrideRecord] = useState(null);
-  const [overrideStatus, setOverrideStatus] = useState("PRESENT");
-  const [overrideReason, setOverrideReason] = useState("FACULTY_OVERRIDE");
-  const [overrideNote, setOverrideNote] = useState("");
-  const [overrideSubmitting, setOverrideSubmitting] = useState(false);
+  // Create Session modal
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [assignedSlots, setAssignedSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    slot_id: "",
+    session_date: getTodayDateString(),
+    scheduled_start: "",
+    scheduled_end: "",
+  });
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  const existingOnDate = sessions.filter(
+    (s) =>
+      Number(s.slot_id) === Number(createForm.slot_id) &&
+      s.session_date &&
+      String(s.session_date).slice(0, 10) === String(createForm.session_date),
+  );
 
   // Application Confirmation Modal State
   const [finalizeTarget, setFinalizeTarget] = useState(null);
@@ -53,7 +77,10 @@ export function FacultySessionsView({ token }) {
       try {
         setLoading(true);
         setError("");
-        const res = await fetchFacultyAttendanceSessions(token, controller.signal);
+        const res = await fetchFacultyAttendanceSessions(
+          token,
+          controller.signal,
+        );
         setSessions(Array.isArray(res?.data) ? res.data : []);
       } catch (err) {
         if (err.name !== "AbortError") {
@@ -69,6 +96,84 @@ export function FacultySessionsView({ token }) {
     loadSessions();
     return () => controller.abort();
   }, [token, reloadTrigger]);
+
+  const handleOpenCreateModal = async () => {
+    setCreateModalOpen(true);
+    setCreateError("");
+    setSlotsLoading(true);
+
+    try {
+      const res = await fetchFacultyTimetable(token);
+      const slots = Array.isArray(res?.data) ? res.data : [];
+      setAssignedSlots(slots);
+
+      if (slots.length > 0) {
+        const first = slots[0];
+        setCreateForm({
+          slot_id: String(first.slot_id),
+          session_date: getTodayDateString(),
+          scheduled_start: first.start_time || "",
+          scheduled_end: first.end_time || "",
+        });
+      } else {
+        setCreateForm({
+          slot_id: "",
+          session_date: getTodayDateString(),
+          scheduled_start: "",
+          scheduled_end: "",
+        });
+      }
+    } catch (err) {
+      setCreateError(err.message || "Failed to load assigned timetable slots.");
+    } finally {
+      setSlotsLoading(false);
+    }
+  };
+
+  const handleSlotSelect = (slotId) => {
+    const selected = assignedSlots.find(
+      (s) => String(s.slot_id) === String(slotId),
+    );
+    setCreateForm((prev) => ({
+      ...prev,
+      slot_id: slotId,
+      scheduled_start: selected?.start_time || prev.scheduled_start,
+      scheduled_end: selected?.end_time || prev.scheduled_end,
+    }));
+  };
+
+  const handleCreateSessionSubmit = async (e) => {
+    e.preventDefault();
+    if (!createForm.slot_id || !createForm.session_date) {
+      setCreateError("Please select a timetable slot and session date.");
+      return;
+    }
+
+    try {
+      setCreateSubmitting(true);
+      setCreateError("");
+
+      const payload = {
+        slot_id: Number(createForm.slot_id),
+        session_date: createForm.session_date,
+      };
+      if (createForm.scheduled_start)
+        payload.scheduled_start = createForm.scheduled_start;
+      if (createForm.scheduled_end)
+        payload.scheduled_end = createForm.scheduled_end;
+
+      await createFacultyAttendanceSession(token, payload);
+      setActionSuccess("Class session created successfully.");
+      setCreateModalOpen(false);
+      setReloadTrigger((prev) => prev + 1);
+    } catch (err) {
+      setCreateError(
+        err.message || "Failed to create class attendance session.",
+      );
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
 
   const handleStartSession = async (session) => {
     try {
@@ -115,7 +220,9 @@ export function FacultySessionsView({ token }) {
 
     try {
       const res = await fetchFacultyAttendanceRoster(token, session.session_id);
-      setRoster(Array.isArray(res?.data) ? res.data : []);
+      const data =
+        res?.data?.roster || (Array.isArray(res?.data) ? res.data : []);
+      setRoster(data);
     } catch (err) {
       setRosterError(err.message || "Failed to load student roster.");
     } finally {
@@ -128,57 +235,73 @@ export function FacultySessionsView({ token }) {
 
     try {
       setRosterError("");
-      await markFacultyAttendanceRecord(token, selectedSession.session_id, {
-        enrollment_id: enrollmentId,
-        status,
-      });
+      setRosterActionLoading(true);
+      const res = await markFacultyAttendanceRecord(
+        token,
+        selectedSession.session_id,
+        {
+          enrollment_id: enrollmentId,
+          status,
+        },
+      );
+
+      const newRecordId = res?.data?.attendance_id;
 
       // Update local roster record
       setRoster((prev) =>
         prev.map((item) =>
           item.enrollment_id === enrollmentId
-            ? { ...item, status, source: "MANUAL", marked_at: new Date().toISOString() }
+            ? {
+                ...item,
+                status,
+                attendance_status: status,
+                attendance_id: newRecordId || item.attendance_id,
+                source: "MANUAL",
+                marked_at: new Date().toISOString(),
+              }
             : item,
         ),
       );
     } catch (err) {
       setRosterError(err.message || "Failed to mark attendance.");
+    } finally {
+      setRosterActionLoading(false);
     }
   };
 
-  const handleOpenOverride = (record) => {
-    setOverrideRecord(record);
-    setOverrideStatus(record.status || "PRESENT");
-    setOverrideReason("FACULTY_OVERRIDE");
-    setOverrideNote("");
-  };
-
-  const handleSaveOverride = async (e) => {
-    e.preventDefault();
-    if (!overrideRecord || !overrideRecord.attendance_id) return;
+  const handleUpdateAttendance = async (recordId, status) => {
+    if (!selectedSession || !recordId) return;
 
     try {
-      setOverrideSubmitting(true);
       setRosterError("");
-      await overrideFacultyAttendanceRecord(token, overrideRecord.attendance_id, {
-        new_status: overrideStatus,
-        reason_code: overrideReason,
-        reason_note: overrideNote,
-      });
+      setRosterActionLoading(true);
+      await updateFacultyAttendanceRecord(
+        token,
+        selectedSession.session_id,
+        recordId,
+        {
+          status,
+        },
+      );
 
-      // Update local roster
+      // Update local roster record
       setRoster((prev) =>
         prev.map((item) =>
-          item.attendance_id === overrideRecord.attendance_id
-            ? { ...item, status: overrideStatus }
+          item.attendance_id === recordId
+            ? {
+                ...item,
+                status,
+                attendance_status: status,
+                source: "MANUAL",
+                marked_at: new Date().toISOString(),
+              }
             : item,
         ),
       );
-      setOverrideRecord(null);
     } catch (err) {
-      setRosterError(err.message || "Failed to override attendance record.");
+      setRosterError(err.message || "Failed to update attendance.");
     } finally {
-      setOverrideSubmitting(false);
+      setRosterActionLoading(false);
     }
   };
 
@@ -197,7 +320,9 @@ export function FacultySessionsView({ token }) {
       key: "session_date",
       render: (row) => (
         <span className="font-semibold text-gray-900">
-          {row.session_date ? new Date(row.session_date).toLocaleDateString() : "—"}
+          {row.session_date
+            ? new Date(row.session_date).toLocaleDateString()
+            : "—"}
         </span>
       ),
     },
@@ -240,25 +365,7 @@ export function FacultySessionsView({ token }) {
     {
       header: "Status",
       key: "status",
-      render: (row) => {
-        const variant =
-          row.status === "OPEN"
-            ? "success"
-            : row.status === "SCHEDULED"
-            ? "warning"
-            : "secondary";
-        return <Badge variant={variant}>{row.status}</Badge>;
-      },
-    },
-    {
-      header: "Marked / Enrolled",
-      key: "counts",
-      render: (row) => (
-        <div className="text-xs font-semibold text-gray-700">
-          <span className="text-green-700 font-bold">{row.present_count || 0}</span> Present /{" "}
-          <span className="text-red-700 font-bold">{row.absent_count || 0}</span> Absent
-        </div>
-      ),
+      render: (row) => <Badge status={row.status} />,
     },
     {
       header: "Actions",
@@ -305,8 +412,30 @@ export function FacultySessionsView({ token }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">
+            Faculty Class Sessions
+          </h2>
+          <p className="text-xs text-gray-500">
+            Create, conduct, and manage attendance for your scheduled teaching
+            lectures.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleOpenCreateModal}
+          className="inline-flex items-center gap-2 rounded-xl bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-green-900"
+        >
+          <PlusIcon className="h-4 w-4" />
+          Create Class Session
+        </button>
+      </div>
+
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
-      {error && <Alert type="error" message={error} onClose={() => setError("")} />}
+      {error && (
+        <Alert type="error" message={error} onClose={() => setError("")} />
+      )}
 
       {/* Sessions Table */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-xs">
@@ -324,6 +453,168 @@ export function FacultySessionsView({ token }) {
           />
         )}
       </div>
+
+      {/* Create Session Modal */}
+      <Modal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Create Class Attendance Session"
+        size="md"
+      >
+        <form onSubmit={handleCreateSessionSubmit} className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Schedule a new attendance session for one of your assigned timetable
+            slots.
+          </p>
+
+          {createError && <Alert type="error" message={createError} />}
+
+          {slotsLoading ? (
+            <LoadingSpinner message="Loading your assigned timetable slots..." />
+          ) : assignedSlots.length === 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+              No active timetable slots are currently assigned to your faculty
+              profile.
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Assigned Timetable Slot{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={createForm.slot_id}
+                  onChange={(e) => handleSlotSelect(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
+                  required
+                >
+                  {assignedSlots.map((slot) => (
+                    <option key={slot.slot_id} value={slot.slot_id}>
+                      {slot.subject_code ? `${slot.subject_code} - ` : ""}
+                      {slot.subject_name || "Course"} (Sec{" "}
+                      {slot.section_code || "A"}) •{" "}
+                      {slot.room_no ? `Room ${slot.room_no}` : "Room TBA"} •{" "}
+                      {slot.start_time?.slice(0, 5)} -{" "}
+                      {slot.end_time?.slice(0, 5)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Session Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={createForm.session_date}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      session_date: e.target.value,
+                    }))
+                  }
+                  className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Scheduled Start
+                  </label>
+                  <input
+                    type="time"
+                    value={
+                      createForm.scheduled_start
+                        ? createForm.scheduled_start.slice(0, 5)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({
+                        ...prev,
+                        scheduled_start: e.target.value,
+                      }))
+                    }
+                    className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Scheduled End
+                  </label>
+                  <input
+                    type="time"
+                    value={
+                      createForm.scheduled_end
+                        ? createForm.scheduled_end.slice(0, 5)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({
+                        ...prev,
+                        scheduled_end: e.target.value,
+                      }))
+                    }
+                    className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              {existingOnDate.length > 0 && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                  <p className="font-semibold">
+                    Existing session(s) on {createForm.session_date} for this slot:
+                  </p>
+                  <ul className="mt-1 list-disc pl-4 space-y-0.5 text-blue-800">
+                    {existingOnDate.map((s) => (
+                      <li key={s.session_id}>
+                        Session #{s.session_id} •{" "}
+                        {s.scheduled_start
+                          ? new Date(s.scheduled_start).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—"}{" "}
+                        -{" "}
+                        {s.scheduled_end
+                          ? new Date(s.scheduled_end).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—"}{" "}
+                        <span className="font-medium">({s.status})</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-[11px] text-blue-700">
+                    To create an additional session on this date, specify a distinct start time above.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setCreateModalOpen(false)}
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createSubmitting || assignedSlots.length === 0}
+              className="rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50"
+            >
+              {createSubmitting ? "Creating..." : "Create Session"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Roster Modal */}
       <Modal
@@ -344,20 +635,12 @@ export function FacultySessionsView({ token }) {
               </p>
               <p className="text-xs text-gray-500">
                 Section: {selectedSession?.section_code || "A"} • Status:{" "}
-                <strong className="text-green-800">{selectedSession?.status}</strong>
+                <strong className="text-green-800">
+                  {selectedSession?.status}
+                </strong>
               </p>
             </div>
-            <Badge
-              variant={
-                selectedSession?.status === "OPEN"
-                  ? "success"
-                  : selectedSession?.status === "SCHEDULED"
-                  ? "warning"
-                  : "secondary"
-              }
-            >
-              {selectedSession?.status}
-            </Badge>
+            <Badge status={selectedSession?.status} />
           </div>
 
           {rosterError && <Alert type="error" message={rosterError} />}
@@ -371,7 +654,11 @@ export function FacultySessionsView({ token }) {
           ) : (
             <div className="max-h-96 overflow-y-auto divide-y divide-gray-100 rounded-xl border border-gray-200">
               {roster.map((student) => {
-                const isMarked = Boolean(student.status);
+                const currentStatus =
+                  student.status || student.attendance_status;
+                const isMarked = Boolean(
+                  currentStatus && currentStatus !== "UNMARKED",
+                );
                 const isSessionOpen = selectedSession?.status === "OPEN";
 
                 return (
@@ -388,62 +675,58 @@ export function FacultySessionsView({ token }) {
                       </div>
                       {student.marked_at && (
                         <div className="text-[10px] text-gray-400">
-                          Marked: {new Date(student.marked_at).toLocaleTimeString()} ({student.source || "MANUAL"})
+                          Marked:{" "}
+                          {new Date(student.marked_at).toLocaleTimeString()} (
+                          {student.source || "MANUAL"})
                         </div>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {isMarked ? (
-                        <div className="flex items-center gap-1.5">
-                          <Badge
-                            variant={
-                              student.status === "PRESENT"
-                                ? "success"
-                                : student.status === "LATE"
-                                ? "warning"
-                                : "error"
-                            }
-                          >
-                            {student.status}
-                          </Badge>
-                          {student.attendance_id && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenOverride(student)}
-                              className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                              title="Override Status"
-                            >
-                              <PencilSquareIcon className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      ) : isSessionOpen ? (
+                      {isSessionOpen ? (
                         <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleMarkAttendance(student.enrollment_id, "PRESENT")}
-                            className="rounded-md bg-green-50 px-2 py-1 text-xs font-bold text-green-700 hover:bg-green-100"
-                          >
-                            Present
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMarkAttendance(student.enrollment_id, "LATE")}
-                            className="rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100"
-                          >
-                            Late
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMarkAttendance(student.enrollment_id, "ABSENT")}
-                            className="rounded-md bg-red-50 px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
-                          >
-                            Absent
-                          </button>
+                          {["PRESENT", "LATE", "ABSENT"].map((st) => {
+                            const isSelected = currentStatus === st;
+                            return (
+                              <button
+                                key={st}
+                                type="button"
+                                disabled={rosterActionLoading}
+                                onClick={() => {
+                                  if (isSelected) return;
+                                  if (student.attendance_id) {
+                                    handleUpdateAttendance(
+                                      student.attendance_id,
+                                      st,
+                                    );
+                                  } else {
+                                    handleMarkAttendance(
+                                      student.enrollment_id,
+                                      st,
+                                    );
+                                  }
+                                }}
+                                className={`rounded-md px-2.5 py-1 text-xs font-bold transition ${
+                                  isSelected
+                                    ? st === "PRESENT"
+                                      ? "bg-green-700 text-white shadow-xs"
+                                      : st === "LATE"
+                                        ? "bg-amber-600 text-white shadow-xs"
+                                        : "bg-red-700 text-white shadow-xs"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                }`}
+                              >
+                                {st.charAt(0) + st.slice(1).toLowerCase()}
+                              </button>
+                            );
+                          })}
                         </div>
+                      ) : isMarked ? (
+                        <Badge status={currentStatus} />
                       ) : (
-                        <span className="text-xs italic text-gray-400">Not Marked</span>
+                        <span className="text-xs italic text-gray-400">
+                          Unmarked
+                        </span>
                       )}
                     </div>
                   </div>
@@ -462,84 +745,6 @@ export function FacultySessionsView({ token }) {
             </button>
           </div>
         </div>
-      </Modal>
-
-      {/* Override Dialog */}
-      <Modal
-        isOpen={Boolean(overrideRecord)}
-        onClose={() => setOverrideRecord(null)}
-        title="Override Attendance Record"
-        size="md"
-      >
-        <form onSubmit={handleSaveOverride} className="space-y-4">
-          <p className="text-xs text-gray-500">
-            Audited status correction for{" "}
-            <strong>{overrideRecord?.full_name}</strong> ({overrideRecord?.register_no}).
-          </p>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-700">
-              New Attendance Status
-            </label>
-            <select
-              value={overrideStatus}
-              onChange={(e) => setOverrideStatus(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
-            >
-              <option value="PRESENT">PRESENT</option>
-              <option value="LATE">LATE</option>
-              <option value="ABSENT">ABSENT</option>
-              <option value="EXCUSED">EXCUSED</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-700">
-              Correction Reason Code
-            </label>
-            <select
-              value={overrideReason}
-              onChange={(e) => setOverrideReason(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
-            >
-              <option value="FACULTY_OVERRIDE">FACULTY_OVERRIDE</option>
-              <option value="TRANSIT_DELAY">TRANSIT_DELAY</option>
-              <option value="MEDICAL_EMERGENCY">MEDICAL_EMERGENCY</option>
-              <option value="OFFICIAL_DUTY">OFFICIAL_DUTY</option>
-              <option value="DEVICE_ERROR">DEVICE_ERROR</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-700">
-              Audit Notes
-            </label>
-            <textarea
-              rows={2}
-              value={overrideNote}
-              onChange={(e) => setOverrideNote(e.target.value)}
-              placeholder="e.g. Student reported lab arrival delay"
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-green-800 focus:outline-hidden"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setOverrideRecord(null)}
-              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={overrideSubmitting}
-              className="rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50"
-            >
-              {overrideSubmitting ? "Saving..." : "Save Correction"}
-            </button>
-          </div>
-        </form>
       </Modal>
 
       {/* Finalize Session Confirmation Dialog */}

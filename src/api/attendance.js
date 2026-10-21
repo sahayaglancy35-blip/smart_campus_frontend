@@ -49,7 +49,7 @@ export async function getStudentAttendanceById(token, studentId, signal) {
 }
 
 export async function getFacultyAttendance(token, facultyId, signal) {
-  return apiClient(`/attendance/staf/t/${facultyId}`, { token, signal });
+  return apiClient(`/attendance/staff/${facultyId}`, { token, signal });
 }
 
 export async function createAttendanceRecord(token, data) {
