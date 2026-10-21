@@ -1,9 +1,10 @@
 import {
   AcademicCapIcon,
   Bars3Icon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
-export function Header({ user, onToggleSidebar, activeTitle }) {
+export function Header({ user, onToggleSidebar, activeTitle, onRefresh }) {
   const roleDisplay = {
     STUDENT: "Student",
     FACULTY: "Faculty Member",
@@ -45,7 +46,19 @@ export function Header({ user, onToggleSidebar, activeTitle }) {
       </div>
 
       {/* User Status Bar */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            title="Refresh current data"
+            className="rounded-xl border border-gray-200 bg-gray-50/80 p-2 text-gray-600 transition hover:bg-green-50 hover:text-green-800 hover:border-green-200 focus:outline-hidden"
+            aria-label="Refresh data"
+          >
+            <ArrowPathIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
+        )}
+
         {activeTitle && (
           <div className="hidden lg:flex items-center text-sm font-semibold text-gray-700 border-l border-gray-200 pl-4">
             {activeTitle}

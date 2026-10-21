@@ -33,6 +33,14 @@ export async function fetchFacultyAttendanceSessions(token, signal) {
   return apiClient("/faculty/attendance/sessions", { token, signal });
 }
 
+export async function createFacultyAttendanceSession(token, data) {
+  return apiClient("/faculty/attendance/sessions", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
 export async function fetchFacultyAttendanceSessionById(token, id, signal) {
   return apiClient(`/faculty/attendance/sessions/${id}`, { token, signal });
 }
@@ -66,9 +74,9 @@ export async function markFacultyAttendanceRecord(token, sessionId, data) {
   });
 }
 
-export async function overrideFacultyAttendanceRecord(token, recordId, data) {
-  return apiClient(`/faculty/attendance/records/${recordId}/override`, {
-    method: "POST",
+export async function updateFacultyAttendanceRecord(token, sessionId, recordId, data) {
+  return apiClient(`/faculty/attendance/sessions/${sessionId}/records/${recordId}`, {
+    method: "PUT",
     token,
     body: data,
   });

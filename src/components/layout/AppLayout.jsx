@@ -9,6 +9,7 @@ export function AppLayout({
   activePage,
   onNavigate,
   onLogout,
+  onRefresh,
   pageTitle,
   pageSubtitle,
   children,
@@ -26,6 +27,7 @@ export function AppLayout({
       <Header
         user={user}
         activeTitle={pageTitle}
+        onRefresh={onRefresh}
         onToggleSidebar={() => setMobileSidebarOpen(true)}
       />
 
