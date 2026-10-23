@@ -192,8 +192,6 @@ function LoginPage({ onLogin, onForgotPassword, loading = false }) {
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
-
-            {/* ---------- Anonymous / Demo Credentials Quick Fill ---------- */}
           </form>
         </main>
       </div>

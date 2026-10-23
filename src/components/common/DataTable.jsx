@@ -14,6 +14,7 @@ export function DataTable({
   emptyMessage = "No records found.",
   emptyAction = null,
   actions = null,
+  rowKey = null,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,14 +34,43 @@ export function DataTable({
   }, [data, searchTerm, searchKey]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
   const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
+    const start = (safeCurrentPage - 1) * pageSize;
     return filteredData.slice(start, start + pageSize);
-  }, [filteredData, currentPage, pageSize]);
+  }, [filteredData, safeCurrentPage, pageSize]);
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
+  };
+
+  const resolveRowKey = (row, rowIdx) => {
+    if (typeof rowKey === "function") return rowKey(row, rowIdx);
+    if (typeof rowKey === "string" && row[rowKey] !== undefined) return row[rowKey];
+    return (
+      row.slot_id ??
+      row.session_id ??
+      row.attendance_id ??
+      row.enrollment_id ??
+      row.section_id ??
+      row.offering_id ??
+      row.subject_id ??
+      row.batch_id ??
+      row.programme_id ??
+      row.school_id ??
+      row.department_id ??
+      row.classroom_id ??
+      row.block_id ??
+      row.degree_id ??
+      row.student_id ??
+      row.faculty_id ??
+      row.user_id ??
+      row.id ??
+      row._id ??
+      `row-${rowIdx}`
+    );
   };
 
   return (
@@ -93,7 +123,7 @@ export function DataTable({
             ) : (
               paginatedData.map((row, rowIdx) => (
                 <tr
-                  key={row.session_id || row.id || row._id || row.student_id || row.faculty_id || rowIdx}
+                  key={resolveRowKey(row, rowIdx)}
                   className="transition hover:bg-gray-50/60"
                 >
                   {columns.map((col, colIdx) => (
@@ -119,11 +149,11 @@ export function DataTable({
           <div>
             Showing{" "}
             <span className="font-semibold text-gray-700">
-              {(currentPage - 1) * pageSize + 1}
+              {(safeCurrentPage - 1) * pageSize + 1}
             </span>{" "}
             to{" "}
             <span className="font-semibold text-gray-700">
-              {Math.min(currentPage * pageSize, filteredData.length)}
+              {Math.min(safeCurrentPage * pageSize, filteredData.length)}
             </span>{" "}
             of{" "}
             <span className="font-semibold text-gray-700">
@@ -134,19 +164,19 @@ export function DataTable({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, Math.min(p, totalPages) - 1))}
               className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-xs hover:bg-gray-50 disabled:opacity-40"
             >
               <ChevronLeftIcon className="h-4 w-4" /> Previous
             </button>
             <span className="text-xs">
-              Page {currentPage} of {totalPages}
+              Page {safeCurrentPage} of {totalPages}
             </span>
             <button
               type="button"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, Math.max(1, p) + 1))}
               className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-xs hover:bg-gray-50 disabled:opacity-40"
             >
               Next <ChevronRightIcon className="h-4 w-4" />

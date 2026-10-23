@@ -7,10 +7,12 @@ export function Modal({
   title,
   children,
   maxWidth = "max-w-lg",
+  closeOnBackdropClick = false,
+  closeOnEscape = true,
 }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isOpen) {
+      if (closeOnEscape && e.key === "Escape" && isOpen) {
         onClose();
       }
     };
@@ -24,21 +26,34 @@ export function Modal({
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, closeOnEscape]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/50 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/50 backdrop-blur-xs"
+      onClick={() => {
+        if (closeOnBackdropClick) {
+          onClose();
+        }
+      }}
+    >
       <div
         className="fixed inset-0"
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (closeOnBackdropClick) {
+            onClose();
+          }
+        }}
         aria-hidden="true"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        onClick={(e) => e.stopPropagation()}
         className={`relative w-full ${maxWidth} max-h-[90vh] flex flex-col rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-200 transition-all z-10 my-auto`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 pb-4">
