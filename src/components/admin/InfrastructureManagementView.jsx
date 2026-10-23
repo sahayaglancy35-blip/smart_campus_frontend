@@ -397,6 +397,7 @@ export function InfrastructureManagementView({ token }) {
         <LoadingSpinner message="Fetching campus infrastructure details..." />
       ) : activeTab === "classrooms" ? (
         <DataTable
+          key="infra-classrooms-table"
           columns={classroomColumns}
           data={classrooms}
           searchPlaceholder="Search classroom by room number..."
@@ -405,6 +406,7 @@ export function InfrastructureManagementView({ token }) {
         />
       ) : (
         <DataTable
+          key="infra-blocks-table"
           columns={blockColumns}
           data={blocks}
           searchPlaceholder="Search blocks by name or code..."

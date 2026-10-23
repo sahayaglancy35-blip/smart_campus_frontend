@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getAttendanceSessions,
   createAttendanceSession,
@@ -21,7 +21,7 @@ import {
   PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 
-export function AttendanceSessionsView({ token, user }) {
+export function AttendanceSessionsView({ token, user, refreshTrigger = 0 }) {
   const [sessions, setSessions] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [facultyList, setFacultyList] = useState([]);
@@ -34,7 +34,11 @@ export function AttendanceSessionsView({ token, user }) {
   const [viewingRosterSession, setViewingRosterSession] = useState(null);
   const [rosterRecords, setRosterRecords] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState("");
+  const [rosterSuccess, setRosterSuccess] = useState("");
+
   const [overridingRecord, setOverridingRecord] = useState(null);
+  const [overrideError, setOverrideError] = useState("");
   const [overrideForm, setOverrideForm] = useState({
     new_status: "PRESENT",
     reason_code: "FACULTY_OVERRIDE",
@@ -57,6 +61,49 @@ export function AttendanceSessionsView({ token, user }) {
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
+  const handleCloseRoster = useCallback(() => {
+    setViewingRosterSession(null);
+    setRosterRecords([]);
+    try {
+      sessionStorage.removeItem("erp_active_roster_session_id");
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  const handleViewRoster = useCallback(
+    async (session) => {
+      setViewingRosterSession(session);
+      try {
+        sessionStorage.setItem("erp_active_roster_session_id", String(session.session_id));
+      } catch {
+        // Ignore storage errors
+      }
+      setRosterLoading(true);
+      setRosterError("");
+      setRosterSuccess("");
+      try {
+        const res = await getSessionAttendance(token, session.session_id);
+        const data =
+          res?.data?.records ||
+          res?.data?.roster ||
+          (Array.isArray(res?.data) ? res.data : []);
+        setRosterRecords(
+          data.map((r) => ({
+            ...r,
+            status: r.attendance_status || r.status || "UNMARKED",
+          }))
+        );
+      } catch (err) {
+        setRosterError(err.message || "Failed to load session roster.");
+        setRosterRecords([]);
+      } finally {
+        setRosterLoading(false);
+      }
+    },
+    [token]
+  );
+
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
@@ -70,9 +117,23 @@ export function AttendanceSessionsView({ token, user }) {
           getFaculty(token, controller.signal).catch(() => ({ data: [] })),
         ]);
 
-        setSessions(Array.isArray(sessionsRes?.data) ? sessionsRes.data : []);
+        const fetchedSessions = Array.isArray(sessionsRes?.data) ? sessionsRes.data : [];
+        setSessions(fetchedSessions);
         setClassrooms(Array.isArray(roomsRes?.data) ? roomsRes.data : []);
         setFacultyList(Array.isArray(facRes?.data) ? facRes.data : []);
+
+        // Restore active roster session if previously viewing
+        try {
+          const savedRosterId = sessionStorage.getItem("erp_active_roster_session_id");
+          if (savedRosterId) {
+            const matched = fetchedSessions.find((s) => String(s.session_id) === String(savedRosterId));
+            if (matched) {
+              handleViewRoster(matched);
+            }
+          }
+        } catch {
+          // Ignore storage errors
+        }
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Failed to load attendance sessions.");
@@ -86,7 +147,7 @@ export function AttendanceSessionsView({ token, user }) {
 
     loadData();
     return () => controller.abort();
-  }, [token, reloadTrigger]);
+  }, [token, reloadTrigger, refreshTrigger, handleViewRoster]);
 
   const handleOpenCreate = () => {
     const today = new Date().toISOString().split("T")[0];
@@ -150,46 +211,64 @@ export function AttendanceSessionsView({ token, user }) {
     }
   };
 
-  const handleViewRoster = async (session) => {
-    setViewingRosterSession(session);
-    setRosterLoading(true);
-    try {
-      const res = await getSessionAttendance(token, session.session_id);
-      setRosterRecords(Array.isArray(res?.data) ? res.data : []);
-    } catch (err) {
-      setError(err.message || "Failed to load session roster.");
-      setRosterRecords([]);
-    } finally {
-      setRosterLoading(false);
-    }
-  };
+
 
   const handleOpenOverride = (record) => {
+    const currentStatus = record.attendance_status || record.status || "UNMARKED";
     setOverridingRecord(record);
+    setOverrideError("");
     setOverrideForm({
-      new_status: record.status === "PRESENT" ? "ABSENT" : "PRESENT",
+      new_status: currentStatus === "PRESENT" ? "ABSENT" : "PRESENT",
       reason_code: "FACULTY_OVERRIDE",
-      reason_note: "Manual administrative update",
+      reason_note: "",
     });
   };
 
   const handleOverrideSubmit = async (e) => {
     e.preventDefault();
     if (!overridingRecord) return;
+    setOverrideError("");
+
+    const currentStatus = overridingRecord.attendance_status || overridingRecord.status || "UNMARKED";
+    if (overridingRecord.attendance_id && overrideForm.new_status === currentStatus) {
+      setOverrideError(
+        `Student is already marked as ${currentStatus}. Please choose a different status to override.`
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      await overrideAttendanceRecord(token, overridingRecord.attendance_id, overrideForm);
-      setActionSuccess("Attendance record overridden successfully.");
+      await overrideAttendanceRecord(token, overridingRecord.attendance_id || 0, {
+        ...overrideForm,
+        session_id: viewingRosterSession.session_id,
+        enrollment_id: overridingRecord.enrollment_id,
+      });
+
+      setRosterSuccess(
+        `Attendance for ${overridingRecord.full_name || overridingRecord.register_no || "student"} updated to ${overrideForm.new_status}!`
+      );
+      setTimeout(() => setRosterSuccess(""), 4000);
       setOverridingRecord(null);
 
       // Refresh roster
       if (viewingRosterSession) {
         const res = await getSessionAttendance(token, viewingRosterSession.session_id);
-        setRosterRecords(Array.isArray(res?.data) ? res.data : []);
+        const data =
+          res?.data?.records ||
+          res?.data?.roster ||
+          (Array.isArray(res?.data) ? res.data : []);
+        setRosterRecords(
+          data.map((r) => ({
+            ...r,
+            status: r.attendance_status || r.status || "UNMARKED",
+          }))
+        );
       }
+      setReloadTrigger((prev) => prev + 1);
     } catch (err) {
-      setError(err.message || "Failed to override attendance.");
+      setOverrideError(err.message || "Failed to override attendance.");
     } finally {
       setSubmitting(false);
     }
@@ -287,20 +366,32 @@ export function AttendanceSessionsView({ token, user }) {
 
   const rosterColumns = [
     {
+      header: "Student",
+      key: "register_no",
+      render: (row) => (
+        <div>
+          <div className="font-mono text-xs font-bold text-gray-900">
+            {row.register_no || `ID #${row.student_id || row.enrollment_id}`}
+          </div>
+          <div className="text-xs text-gray-600 font-medium">{row.full_name || "—"}</div>
+        </div>
+      ),
+    },
+    {
       header: "Enrollment ID",
       key: "enrollment_id",
-      render: (row) => <span className="font-mono text-xs text-gray-700">#{row.enrollment_id}</span>,
+      render: (row) => <span className="font-mono text-xs text-gray-500">#{row.enrollment_id}</span>,
     },
     {
       header: "Status",
       key: "status",
-      render: (row) => <Badge status={row.status} />,
+      render: (row) => <Badge status={row.attendance_status || row.status || "UNMARKED"} />,
     },
     {
       header: "Source",
       key: "source",
       render: (row) => (
-        <span className="text-xs font-mono text-gray-500">{row.source || "SYSTEM"}</span>
+        <span className="text-xs font-mono text-gray-500">{row.source || "—"}</span>
       ),
     },
     {
@@ -319,9 +410,11 @@ export function AttendanceSessionsView({ token, user }) {
         <button
           type="button"
           onClick={() => handleOpenOverride(row)}
-          className="inline-flex items-center gap-1 rounded-lg p-1.5 text-xs font-semibold text-green-800 hover:bg-green-50"
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-green-800 bg-green-50 hover:bg-green-100 border border-green-200 transition"
+          title="Override or update attendance status"
         >
-          <PencilSquareIcon className="h-4 w-4" /> Override
+          <PencilSquareIcon className="h-3.5 w-3.5" />
+          {row.attendance_id ? "Override" : "Mark"}
         </button>
       ),
     },
@@ -336,6 +429,7 @@ export function AttendanceSessionsView({ token, user }) {
         <LoadingSpinner message="Fetching attendance sessions..." />
       ) : (
         <DataTable
+          key="attendance-sessions-main-table"
           columns={sessionColumns}
           data={sessions}
           searchPlaceholder="Search session by ID or date..."
@@ -476,39 +570,47 @@ export function AttendanceSessionsView({ token, user }) {
       {/* Session Roster Modal */}
       <Modal
         isOpen={Boolean(viewingRosterSession)}
-        onClose={() => setViewingRosterSession(null)}
+        onClose={handleCloseRoster}
         title={`Session #${viewingRosterSession?.session_id} Attendance Roster`}
-        maxWidth="max-w-2xl"
+        maxWidth="max-w-3xl"
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-green-50 p-3 rounded-xl border border-green-200 text-xs">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-green-50 p-3 rounded-xl border border-green-200 text-xs">
+            <div className="flex items-center gap-2">
               <span className="font-semibold text-green-950">Status: </span>
               <Badge status={viewingRosterSession?.status} />
             </div>
             <div>
               <span className="font-semibold text-green-950">Date: </span>
               {viewingRosterSession?.session_date
-                ? new Date(viewingRosterSession.session_date).toLocaleDateString()
+                ? String(viewingRosterSession.session_date).slice(0, 10)
                 : "—"}
             </div>
+            <div>
+              <span className="font-semibold text-green-950">Slot ID: </span>
+              #{viewingRosterSession?.slot_id || "—"}
+            </div>
           </div>
+
+          {rosterSuccess && <Alert type="success" message={rosterSuccess} />}
+          {rosterError && <Alert type="error" message={rosterError} />}
 
           {rosterLoading ? (
             <LoadingSpinner message="Fetching roster records..." />
           ) : (
             <DataTable
+              key={`roster-table-${viewingRosterSession?.session_id || "modal"}`}
               columns={rosterColumns}
               data={rosterRecords}
-              pageSize={6}
-              emptyMessage="No student attendance records logged for this session yet."
+              pageSize={8}
+              emptyMessage="No student attendance records found for this session."
             />
           )}
 
           <div className="flex justify-end pt-3 border-t border-gray-100">
             <button
               type="button"
-              onClick={() => setViewingRosterSession(null)}
+              onClick={handleCloseRoster}
               className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
             >
               Close
@@ -521,14 +623,22 @@ export function AttendanceSessionsView({ token, user }) {
       <Modal
         isOpen={Boolean(overridingRecord)}
         onClose={() => setOverridingRecord(null)}
-        title="Override Attendance Record"
+        title={overridingRecord?.attendance_id ? "Override Attendance Record" : "Mark Student Attendance"}
         maxWidth="max-w-md"
       >
         <form onSubmit={handleOverrideSubmit} className="space-y-4">
-          <p className="text-xs text-gray-500">
-            Overriding record #{overridingRecord?.attendance_id} for enrollment #
-            {overridingRecord?.enrollment_id}.
-          </p>
+          <div className="rounded-xl bg-gray-50 p-3 border border-gray-200 text-xs space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-gray-900 text-sm">{overridingRecord?.full_name || "Student"}</span>
+              <Badge status={overridingRecord?.attendance_status || overridingRecord?.status || "UNMARKED"} />
+            </div>
+            <div className="text-gray-500 font-mono">
+              Roll: {overridingRecord?.register_no || "—"} • Enrollment #{overridingRecord?.enrollment_id}
+              {overridingRecord?.attendance_id ? ` • Record #${overridingRecord.attendance_id}` : " • Not marked yet"}
+            </div>
+          </div>
+
+          {overrideError && <Alert type="error" message={overrideError} />}
 
           <div>
             <label className="block text-xs font-semibold uppercase text-gray-700">
@@ -547,18 +657,19 @@ export function AttendanceSessionsView({ token, user }) {
 
           <div>
             <label className="block text-xs font-semibold uppercase text-gray-700">
-              Reason Code
+              Reason Code <span className="text-red-500">*</span>
             </label>
             <select
               value={overrideForm.reason_code}
               onChange={(e) => setOverrideForm({ ...overrideForm, reason_code: e.target.value })}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
             >
-              <option value="FACULTY_OVERRIDE">FACULTY_OVERRIDE</option>
-              <option value="MEDICAL_LEAVE">MEDICAL_LEAVE</option>
-              <option value="ON_DUTY_LEAVE">ON_DUTY_LEAVE</option>
-              <option value="DATA_ENTRY_ERROR">DATA_ENTRY_ERROR</option>
-              <option value="OTHER">OTHER</option>
+              <option value="FACULTY_OVERRIDE">FACULTY_OVERRIDE (Faculty Request)</option>
+              <option value="MEDICAL_LEAVE">MEDICAL_LEAVE (Medical Leave)</option>
+              <option value="ON_DUTY_LEAVE">ON_DUTY_LEAVE (On Duty / Official Event)</option>
+              <option value="DEVICE_FAILURE">DEVICE_FAILURE (Scanner / Biometric Failure)</option>
+              <option value="DATA_ENTRY_ERROR">DATA_ENTRY_ERROR (Data Entry Error)</option>
+              <option value="OTHER">OTHER (Other / Administrative)</option>
             </select>
           </div>
 
@@ -588,7 +699,7 @@ export function AttendanceSessionsView({ token, user }) {
               disabled={submitting}
               className="rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50"
             >
-              {submitting ? "Updating..." : "Save Override"}
+              {submitting ? "Saving..." : overridingRecord?.attendance_id ? "Save Override" : "Mark Attendance"}
             </button>
           </div>
         </form>

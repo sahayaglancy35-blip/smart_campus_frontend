@@ -15,6 +15,7 @@ const ROLE_MAP = {
 
 const TOKEN_KEY = "smart_campus_jwt";
 const LEGACY_TOKEN_KEY = "token";
+const USER_KEY = "smart_campus_user";
 
 function getStoredToken() {
   try {
@@ -28,11 +29,28 @@ function getStoredToken() {
   }
 }
 
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function App() {
   const [token, setToken] = useState(getStoredToken);
-  const [isInitializing, setIsInitializing] = useState(() => Boolean(getStoredToken()));
-  const [view, setView] = useState("login");
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(getStoredUser);
+  const [isInitializing, setIsInitializing] = useState(() => {
+    const savedToken = getStoredToken();
+    const savedUser = getStoredUser();
+    // Only show full-screen loader if token exists but user profile has never been cached
+    return Boolean(savedToken && !savedUser);
+  });
+  const [view, setView] = useState(() => {
+    const savedToken = getStoredToken();
+    return savedToken ? "dashboard" : "login";
+  });
   const [loginError, setLoginError] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -107,6 +125,12 @@ export function App() {
 
         const userData = await buildUserProfile(result.data, savedToken);
 
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(userData));
+        } catch {
+          // Ignore storage errors
+        }
+
         setToken(savedToken);
         setUser(userData);
         setView("dashboard");
@@ -122,6 +146,7 @@ export function App() {
           try {
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem(LEGACY_TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
           } catch {
             // Ignore storage errors
           }
@@ -159,6 +184,12 @@ export function App() {
         const userData = await buildUserProfile(result.data, savedToken);
         if (!mounted) return;
 
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(userData));
+        } catch {
+          // Ignore storage errors
+        }
+
         setToken(savedToken);
         setUser(userData);
         setView("dashboard");
@@ -177,6 +208,7 @@ export function App() {
           try {
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem(LEGACY_TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
           } catch {
             // Ignore storage errors
           }
@@ -225,6 +257,12 @@ export function App() {
 
       const userData = await buildUserProfile(result.data, result.token);
 
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(userData));
+      } catch (storageErr) {
+        console.warn("User storage write failed:", storageErr);
+      }
+
       setToken(result.token);
       setUser(userData);
       setView("dashboard");
@@ -252,6 +290,7 @@ export function App() {
     try {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     } catch {
       // Ignore storage errors
     }

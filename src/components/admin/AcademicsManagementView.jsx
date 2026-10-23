@@ -59,10 +59,41 @@ const DAYS_OF_WEEK = [
   { id: 6, name: "Saturday" },
 ];
 
-export function AcademicsManagementView({ token }) {
+export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   // Tabs: "hierarchy" | "timetable" | "sections" | "offerings" | "subjects"
-  const [activeTab, setActiveTab] = useState("timetable");
-  const [hierarchySubTab, setHierarchySubTab] = useState("programs"); // "schools" | "programs" | "batches"
+  const [activeTab, setActiveTabState] = useState(() => {
+    try {
+      return sessionStorage.getItem("ju_academics_tab") || "timetable";
+    } catch {
+      return "timetable";
+    }
+  });
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    try {
+      sessionStorage.setItem("ju_academics_tab", tab);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const [hierarchySubTab, setHierarchySubTabState] = useState(() => {
+    try {
+      return sessionStorage.getItem("ju_academics_hierarchy_subtab") || "programs";
+    } catch {
+      return "programs";
+    }
+  });
+
+  const setHierarchySubTab = (subTab) => {
+    setHierarchySubTabState(subTab);
+    try {
+      sessionStorage.setItem("ju_academics_hierarchy_subtab", subTab);
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
@@ -148,19 +179,74 @@ export function AcademicsManagementView({ token }) {
     max_strength: 60,
   });
 
-  const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
-  const [editingSlot, setEditingSlot] = useState(null);
-  const [slotForm, setSlotForm] = useState({
-    section_id: "",
-    faculty_id: "",
-    classroom_id: "",
-    day_of_week: 1,
-    start_time: "09:00:00",
-    end_time: "10:00:00",
-    effective_from: new Date().toISOString().split("T")[0],
-    effective_to: "",
-    is_active: 1,
+  const [isSlotModalOpen, setIsSlotModalOpenState] = useState(() => {
+    try {
+      return sessionStorage.getItem("ju_academics_slot_modal_open") === "1";
+    } catch {
+      return false;
+    }
   });
+
+  const setIsSlotModalOpen = (open) => {
+    setIsSlotModalOpenState(open);
+    try {
+      if (open) {
+        sessionStorage.setItem("ju_academics_slot_modal_open", "1");
+      } else {
+        sessionStorage.removeItem("ju_academics_slot_modal_open");
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [slotForm, setSlotFormState] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("ju_academics_slot_form");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          return {
+            section_id: parsed.section_id ?? "",
+            faculty_id: parsed.faculty_id ?? "",
+            classroom_id: parsed.classroom_id ?? "",
+            day_of_week: Number(parsed.day_of_week) || 1,
+            start_time: parsed.start_time || "09:00:00",
+            end_time: parsed.end_time || "10:00:00",
+            effective_from: parsed.effective_from || new Date().toISOString().split("T")[0],
+            effective_to: parsed.effective_to || "",
+            is_active: parsed.is_active !== undefined ? parsed.is_active : 1,
+          };
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return {
+      section_id: "",
+      faculty_id: "",
+      classroom_id: "",
+      day_of_week: 1,
+      start_time: "09:00:00",
+      end_time: "10:00:00",
+      effective_from: new Date().toISOString().split("T")[0],
+      effective_to: "",
+      is_active: 1,
+    };
+  });
+
+  const setSlotForm = (updater) => {
+    setSlotFormState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try {
+        sessionStorage.setItem("ju_academics_slot_form", JSON.stringify(next));
+      } catch {
+        // Ignore storage errors
+      }
+      return next;
+    });
+  };
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -253,7 +339,7 @@ export function AcademicsManagementView({ token }) {
 
     loadAllAcademics();
     return () => controller.abort();
-  }, [token, reloadTrigger]);
+  }, [token, reloadTrigger, refreshTrigger]);
 
   // -------------------------------------------------------------
   // Cascading Filter Logic
@@ -555,7 +641,7 @@ export function AcademicsManagementView({ token }) {
     setSubjectForm({
       subject_code: row.subject_code || "",
       name: row.name || "",
-      department_id: row.department_id || "",
+      department_id: row.department_id || row.owner_department_id || "",
       credits: row.credits || 3,
       course_category: row.course_category || "CORE",
       is_active: row.is_active !== undefined ? row.is_active : 1,
@@ -569,11 +655,17 @@ export function AcademicsManagementView({ token }) {
     setFormError("");
     setSubmitting(true);
     try {
+      const payload = {
+        ...subjectForm,
+        department_id: subjectForm.department_id ? Number(subjectForm.department_id) : null,
+        owner_department_id: subjectForm.department_id ? Number(subjectForm.department_id) : null,
+        credits: Number(subjectForm.credits) || 0,
+      };
       if (editingSubject) {
-        await updateSubject(token, editingSubject.subject_id, subjectForm);
+        await updateSubject(token, editingSubject.subject_id, payload);
         setActionSuccess(`Subject "${subjectForm.name}" updated successfully.`);
       } else {
-        await createSubject(token, subjectForm);
+        await createSubject(token, payload);
         setActionSuccess(`Subject "${subjectForm.name}" created successfully.`);
       }
       setIsSubjectModalOpen(false);
@@ -752,8 +844,41 @@ export function AcademicsManagementView({ token }) {
   // -------------------------------------------------------------
   const handleOpenCreateSlot = () => {
     setEditingSlot(null);
+    setFormError("");
+    try {
+      const saved = sessionStorage.getItem("ju_academics_slot_form");
+      if (!saved) {
+        const today = new Date().toISOString().split("T")[0];
+        setSlotForm({
+          section_id: sections[0]?.section_id || "",
+          faculty_id: facultyList[0]?.faculty_id || "",
+          classroom_id: classroomList[0]?.classroom_id || "",
+          day_of_week: 1,
+          start_time: "09:00:00",
+          end_time: "10:00:00",
+          effective_from: today,
+          effective_to: "",
+          is_active: 1,
+        });
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    setIsSlotModalOpen(true);
+  };
+
+  const handleCancelSlotModal = () => {
+    setIsSlotModalOpen(false);
+    setEditingSlot(null);
+    setFormError("");
+    try {
+      sessionStorage.removeItem("ju_academics_slot_modal_open");
+      sessionStorage.removeItem("ju_academics_slot_form");
+    } catch {
+      // Ignore storage errors
+    }
     const today = new Date().toISOString().split("T")[0];
-    setSlotForm({
+    setSlotFormState({
       section_id: sections[0]?.section_id || "",
       faculty_id: facultyList[0]?.faculty_id || "",
       classroom_id: classroomList[0]?.classroom_id || "",
@@ -764,8 +889,6 @@ export function AcademicsManagementView({ token }) {
       effective_to: "",
       is_active: 1,
     });
-    setFormError("");
-    setIsSlotModalOpen(true);
   };
 
   const handleOpenEditSlot = (row) => {
@@ -790,15 +913,19 @@ export function AcademicsManagementView({ token }) {
     e.preventDefault();
     setFormError("");
 
-    if (!slotForm.section_id) {
+    const sectionId = slotForm.section_id || sections[0]?.section_id;
+    const facultyId = slotForm.faculty_id || facultyList[0]?.faculty_id;
+    const classroomId = slotForm.classroom_id || classroomList[0]?.classroom_id;
+
+    if (!sectionId) {
       setFormError("Please select a student section.");
       return;
     }
-    if (!slotForm.faculty_id) {
+    if (!facultyId) {
       setFormError("Please assign a faculty member.");
       return;
     }
-    if (!slotForm.classroom_id) {
+    if (!classroomId) {
       setFormError("Please designate a classroom.");
       return;
     }
@@ -810,9 +937,9 @@ export function AcademicsManagementView({ token }) {
     setSubmitting(true);
     try {
       const payload = {
-        section_id: Number(slotForm.section_id),
-        faculty_id: Number(slotForm.faculty_id),
-        classroom_id: Number(slotForm.classroom_id),
+        section_id: Number(sectionId),
+        faculty_id: Number(facultyId),
+        classroom_id: Number(classroomId),
         day_of_week: Number(slotForm.day_of_week),
         start_time:
           slotForm.start_time.length === 5
@@ -835,6 +962,13 @@ export function AcademicsManagementView({ token }) {
         setActionSuccess("Timetable slot allocated successfully.");
       }
       setIsSlotModalOpen(false);
+      setEditingSlot(null);
+      try {
+        sessionStorage.removeItem("ju_academics_slot_modal_open");
+        sessionStorage.removeItem("ju_academics_slot_form");
+      } catch {
+        // Ignore storage errors
+      }
       setReloadTrigger((prev) => prev + 1);
       setTimeout(() => setActionSuccess(""), 4000);
     } catch (err) {
@@ -1093,7 +1227,12 @@ export function AcademicsManagementView({ token }) {
     {
       header: "Department",
       key: "department_name",
-      render: (row) => row.department_name || "—",
+      render: (row) =>
+        row.department_name ||
+        departments.find(
+          (d) => d.department_id === (row.department_id || row.owner_department_id),
+        )?.name ||
+        "—",
     },
     {
       header: "Credits",
@@ -1716,6 +1855,7 @@ export function AcademicsManagementView({ token }) {
 
             {/* Timetable Table */}
             <DataTable
+              key="academics-timetable-table"
               data={filteredTimetableSlots}
               columns={slotColumns}
               searchable
@@ -1741,6 +1881,7 @@ export function AcademicsManagementView({ token }) {
           </div>
         ) : activeTab === "sections" ? (
           <DataTable
+            key="academics-sections-table"
             data={sections}
             columns={sectionColumns}
             searchable
@@ -1749,6 +1890,7 @@ export function AcademicsManagementView({ token }) {
           />
         ) : activeTab === "offerings" ? (
           <DataTable
+            key="academics-offerings-table"
             data={offerings}
             columns={offeringColumns}
             searchable
@@ -1757,6 +1899,7 @@ export function AcademicsManagementView({ token }) {
           />
         ) : activeTab === "subjects" ? (
           <DataTable
+            key="academics-subjects-table"
             data={subjects}
             columns={subjectColumns}
             searchable
@@ -1807,6 +1950,7 @@ export function AcademicsManagementView({ token }) {
 
             {hierarchySubTab === "programs" ? (
               <DataTable
+                key="hierarchy-programs-table"
                 data={programs}
                 columns={programColumns}
                 searchable
@@ -1815,6 +1959,7 @@ export function AcademicsManagementView({ token }) {
               />
             ) : hierarchySubTab === "batches" ? (
               <DataTable
+                key="hierarchy-batches-table"
                 data={batches}
                 columns={batchColumns}
                 searchable
@@ -1823,6 +1968,7 @@ export function AcademicsManagementView({ token }) {
               />
             ) : (
               <DataTable
+                key="hierarchy-schools-table"
                 data={schools}
                 columns={schoolColumns}
                 searchable
@@ -2176,7 +2322,7 @@ export function AcademicsManagementView({ token }) {
               Department
             </label>
             <select
-              value={subjectForm.department_id}
+              value={subjectForm.department_id || ""}
               onChange={(e) => setSubjectForm({ ...subjectForm, department_id: e.target.value })}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
             >
@@ -2428,7 +2574,7 @@ export function AcademicsManagementView({ token }) {
               </label>
               <select
                 required
-                value={slotForm.section_id}
+                value={slotForm.section_id || sections[0]?.section_id || ""}
                 onChange={(e) => setSlotForm({ ...slotForm, section_id: Number(e.target.value) })}
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
               >
@@ -2456,7 +2602,7 @@ export function AcademicsManagementView({ token }) {
                 </label>
                 <select
                   required
-                  value={slotForm.faculty_id}
+                  value={slotForm.faculty_id || facultyList[0]?.faculty_id || ""}
                   onChange={(e) => setSlotForm({ ...slotForm, faculty_id: Number(e.target.value) })}
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
                 >
@@ -2474,7 +2620,7 @@ export function AcademicsManagementView({ token }) {
                 </label>
                 <select
                   required
-                  value={slotForm.classroom_id}
+                  value={slotForm.classroom_id || classroomList[0]?.classroom_id || ""}
                   onChange={(e) => setSlotForm({ ...slotForm, classroom_id: Number(e.target.value) })}
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
                 >
@@ -2583,7 +2729,7 @@ export function AcademicsManagementView({ token }) {
           <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
             <button
               type="button"
-              onClick={() => setIsSlotModalOpen(false)}
+              onClick={handleCancelSlotModal}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
             >
               Cancel
