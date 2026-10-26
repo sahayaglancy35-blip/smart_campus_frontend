@@ -105,9 +105,23 @@ export function App() {
       role: authData.role,
       roleLabel,
       gender: profile.gender || "male",
+      genderLabel: profile.gender || null, // raw value, so a missing gender shows N/A
       userId: authData.user_id,
       studentId: authData.student_id,
       facultyId: authData.faculty_id || profile.faculty_id,
+
+      // Profile popup fields (field names are best guesses: adjust to your API)
+      dateOfBirth: profile.date_of_birth || profile.dob || null,
+      bloodGroup: profile.blood_group || null,
+      // student
+      batch: profile.batch || null, // or: batch_start_year / batch_end_year
+      programme: profile.programme_name || profile.programme || null,
+      section: profile.section_code || profile.section || null,
+      // faculty and admin
+      joiningYear: profile.joining_year || null,
+      designation: profile.designation || null, // faculty role: assistant, associate...
+      inChargeClass: profile.in_charge_class || null,
+      employeeId: profile.employee_code || profile.employee_id || null,
     };
   }, []);
 
