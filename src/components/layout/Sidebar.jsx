@@ -196,8 +196,13 @@ export function Sidebar({
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden w-72 shrink-0 md:block">{sidebarContent}</aside>
+      {/* Desktop Sidebar: the outer <aside> only reserves the 18rem column
+          so the page layout does not shift. The inner box is position:fixed
+          below the 4rem (h-16) header, so it stays put while the page
+          scrolls, regardless of any overflow set on parent elements. */}
+      <aside className="hidden w-72 shrink-0 md:block">
+        <div className="fixed bottom-0 top-16 w-72">{sidebarContent}</div>
+      </aside>
 
       {/* Mobile Drawer */}
       {mobileOpen && (

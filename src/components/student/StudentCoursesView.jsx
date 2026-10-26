@@ -5,6 +5,27 @@ import Alert from "../common/Alert";
 import Badge from "../common/Badge";
 import { BookOpenIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 
+/* Card colors by delivery type: green for theory papers,
+   amber for lab courses. */
+const DELIVERY_STYLE = {
+  THEORY: {
+    card: "border-green-200 bg-green-50/60",
+    code: "bg-green-100 text-green-800",
+    value: "text-green-800"
+  },
+  LAB: {
+    card: "border-amber-200 bg-amber-50/70",
+    code: "bg-amber-100 text-amber-800",
+    value: "text-amber-800"
+  },
+};
+
+function deliveryStyleOf(type) {
+  const key = String(type || "THEORY").toUpperCase();
+  if (key.includes("LAB") || key.includes("PRACTICAL")) return DELIVERY_STYLE.LAB;
+  return DELIVERY_STYLE.THEORY;
+}
+
 export function StudentCoursesView({ token }) {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(Boolean(token));
@@ -92,52 +113,68 @@ export function StudentCoursesView({ token }) {
         </div>
       </div>
 
+      {/* Color legend */}
+      <div className="flex items-center gap-4 text-xs font-medium text-gray-600">
+        {Object.values(DELIVERY_STYLE).map((style) => (
+          <span key={style.label} className="inline-flex items-center gap-1.5">
+            <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
+            {style.label}
+          </span>
+        ))}
+      </div>
+
       {/* Courses List Grid */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {courses.map((course) => (
-          <article
-            key={course.enrollment_id}
-            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs transition hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="rounded-lg bg-green-50 px-3 py-1 font-mono text-sm font-bold text-green-800">
-                {course.subject_code}
-              </span>
-              <Badge status={course.enrollment_status} />
-            </div>
+        {courses.map((course) => {
+          const style = deliveryStyleOf(course.delivery_type);
 
-            <h3 className="mt-3 text-lg font-bold text-gray-900">
-              {course.subject_name}
-            </h3>
+          return (
+            <article
+              key={course.enrollment_id}
+              className={`rounded-2xl border ${style.card} p-5 shadow-xs transition hover:shadow-md`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span
+                  className={`rounded-lg px-3 py-1 font-mono text-sm font-bold ${style.code}`}
+                >
+                  {course.subject_code}
+                </span>
+                <Badge status={course.enrollment_status} />
+              </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-600 border-t border-gray-100 pt-3">
-              <div>
-                <span className="text-gray-400">Credits:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {Number(course.credits)}
-                </span>
+              <h3 className="mt-3 text-lg font-bold text-gray-900">
+                {course.subject_name}
+              </h3>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 border-t border-black/5 pt-3 text-xs text-gray-600">
+                <div>
+                  <span className="text-gray-400">Credits:</span>{" "}
+                  <span className="font-semibold text-gray-800">
+                    {Number(course.credits)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Section:</span>{" "}
+                  <span className="font-semibold text-gray-800">
+                    {course.section_code || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Delivery:</span>{" "}
+                  <span className={`font-semibold ${style.value}`}>
+                    {course.delivery_type || "THEORY"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Type:</span>{" "}
+                  <span className="font-semibold text-gray-800">
+                    {course.registration_type || "REGULAR"}
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-gray-400">Section:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {course.section_code || "—"}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-400">Delivery:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {course.delivery_type || "THEORY"}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-400">Type:</span>{" "}
-                <span className="font-semibold text-gray-800">
-                  {course.registration_type || "REGULAR"}
-                </span>
-              </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </div>
   );
