@@ -17,6 +17,22 @@ export async function getAuthMe(token) {
   });
 }
 
+export async function getUserProfile(token, signal) {
+  return apiClient("/auth/profile", {
+    method: "GET",
+    token,
+    signal,
+  });
+}
+
+export async function updateUserProfile(token, profileData) {
+  return apiClient("/auth/profile", {
+    method: "PUT",
+    token,
+    body: profileData,
+  });
+}
+
 export async function logoutUser(token, signal) {
   return apiClient("/auth/logout", {
     method: "POST",

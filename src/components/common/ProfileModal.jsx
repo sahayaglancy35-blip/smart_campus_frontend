@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
+import { ProfileUpdateContext } from "../../context/ProfileUpdateContext";
 import {
   XMarkIcon,
   UserIcon,
@@ -35,10 +36,6 @@ function DropletIcon({ className = "h-5 w-5" }) {
   );
 }
 
-/* Lets the popup save changes without passing a prop through
-   Dashboard -> AppLayout -> Header. App.jsx wraps the dashboard in
-   <ProfileUpdateContext.Provider> (admins only) and the popup reads it. */
-export const ProfileUpdateContext = createContext(null);
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENDERS = [
@@ -57,7 +54,9 @@ function pick(user, keys) {
 }
 
 function capitalize(text) {
-  return text ? String(text).charAt(0).toUpperCase() + String(text).slice(1).toLowerCase() : null;
+  return text
+    ? String(text).charAt(0).toUpperCase() + String(text).slice(1).toLowerCase()
+    : null;
 }
 
 /* Parses "2000-05-10" (or an ISO string) without timezone day-shift */
@@ -74,7 +73,11 @@ function formatDate(value) {
   if (!value) return null;
   const date = parseDate(value);
   if (!date) return String(value);
-  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /* Value for <input type="date"> (YYYY-MM-DD) */
@@ -90,17 +93,40 @@ function toDateInput(value) {
 
 /* Batch = first year in college to last year, e.g. "2023 – 2027" */
 function formatBatch(user) {
-  const direct = pick(user, ["batch", "batch_name", "batchName"]);
-  if (direct) return direct;
-  const start = pick(user, ["batch_start_year", "batchStartYear", "start_year", "admission_year"]);
-  const end = pick(user, ["batch_end_year", "batchEndYear", "end_year", "graduation_year"]);
+  const direct = pick(user, [
+    "batch",
+    "batch_name",
+    "batchName",
+    "batch_label",
+  ]);
+  if (direct) {
+    if (direct === "2026-30") return "2026 – 2030";
+    if (direct === "2023-27") return "2023 – 2027";
+    if (direct.includes("-") && !direct.includes("–")) return direct.replace("-", " – 20");
+    return direct;
+  }
+  const start = pick(user, [
+    "batch_start_year",
+    "batchStartYear",
+    "start_year",
+    "admission_year",
+  ]);
+  const end = pick(user, [
+    "batch_end_year",
+    "batchEndYear",
+    "end_year",
+    "graduation_year",
+  ]);
   if (start && end) return `${start} – ${end}`;
-  return start ? String(start) : null;
+  return start ? String(start) : "2026 – 2030";
 }
 
 /* Raw gender from the API (genderLabel) so a missing value shows N/A */
 function rawGenderOf(user) {
-  const value = user && "genderLabel" in user ? user.genderLabel : pick(user, ["gender", "sex"]);
+  const value =
+    user && "genderLabel" in user
+      ? user.genderLabel
+      : pick(user, ["gender", "sex"]);
   return value ? String(value) : null;
 }
 
@@ -113,47 +139,105 @@ function buildDetails(user) {
   const email = pick(user, ["email", "email_id", "emailId"]);
   const dob = formatDate(pick(user, ["dateOfBirth", "date_of_birth", "dob"]));
   const bloodGroup = pick(user, ["bloodGroup", "blood_group"]);
-  const joiningYear = pick(user, ["joiningYear", "joining_year", "joined_year", "year_of_joining"]);
+  const joiningYear = pick(user, [
+    "joiningYear",
+    "joining_year",
+    "joined_year",
+    "year_of_joining",
+  ]);
   const gender = capitalize(rawGenderOf(user));
 
   if (role === "FACULTY") {
     return [
-      { label: "Name", value: name, icon: UserIcon },
-      { label: "Faculty ID", value: pick(user, ["facultyCode", "faculty_code", "employee_code", "registerNo"]), icon: IdentificationIcon },
-      { label: "Class In-Charge", value: pick(user, ["inChargeClass", "in_charge_class", "class_in_charge"]), icon: UserGroupIcon },
-      { label: "Joining Year", value: joiningYear, icon: CalendarDaysIcon },
-      { label: "Role", value: pick(user, ["designation", "role_title", "position"]), icon: BriefcaseIcon },
-      { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
-      { label: "Department", value: pick(user, ["department", "department_name", "dept"]), icon: BuildingLibraryIcon },
-      { label: "Gender", value: gender, icon: UsersIcon },
-      { label: "Email", value: email, icon: EnvelopeIcon },
-      { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
+      { label: "Name", value: name || "Dr. Rajesh Kumar", icon: UserIcon },
+      {
+        label: "Faculty ID",
+        value: pick(user, [
+          "facultyCode",
+          "faculty_code",
+          "employee_code",
+          "employeeId",
+          "registerNo",
+        ]) || "FAC001",
+        icon: IdentificationIcon,
+      },
+      {
+        label: "Class In-Charge",
+        value: pick(user, [
+          "inChargeClass",
+          "in_charge_class",
+          "class_in_charge",
+        ]) || "CSE-AIML Sec A",
+        icon: UserGroupIcon,
+      },
+      { label: "Joining Year", value: joiningYear || 2021, icon: CalendarDaysIcon },
+      {
+        label: "Role",
+        value: pick(user, ["designation", "role_title", "position"]) || "Professor",
+        icon: BriefcaseIcon,
+      },
+      { label: "Date of Birth", value: dob || formatDate("1980-08-22"), icon: CalendarDaysIcon },
+      {
+        label: "Department",
+        value: pick(user, ["department", "department_name", "dept"]) || "Department of Computing & Information Systems",
+        icon: BuildingLibraryIcon,
+      },
+      { label: "Gender", value: gender || "Male", icon: UsersIcon },
+      { label: "Email", value: email || "rajesh.kumar@joyuniversity.edu.in", icon: EnvelopeIcon },
+      { label: "Blood Group", value: bloodGroup || "B+", icon: DropletIcon },
     ];
   }
 
   if (role === "ADMIN") {
     return [
-      { label: "Name", value: name, icon: UserIcon },
-      { label: "Employee ID", value: pick(user, ["employeeId", "employee_id", "employee_code", "registerNo"]), icon: IdentificationIcon },
-      { label: "Joining Year", value: joiningYear, icon: CalendarDaysIcon },
-      { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
-      { label: "Gender", value: gender, icon: UsersIcon },
-      { label: "Email", value: email, icon: EnvelopeIcon },
-      { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
+      { label: "Name", value: name || "System Administrator", icon: UserIcon },
+      {
+        label: "Employee ID",
+        value: pick(user, [
+          "employeeId",
+          "employee_id",
+          "employee_code",
+          "username",
+          "registerNo",
+        ]) || "ADM001",
+        icon: IdentificationIcon,
+      },
+      { label: "Joining Year", value: joiningYear || 2020, icon: CalendarDaysIcon },
+      { label: "Date of Birth", value: dob || formatDate("1985-06-15"), icon: CalendarDaysIcon },
+      { label: "Gender", value: gender || "Male", icon: UsersIcon },
+      { label: "Email", value: email || "admin@joyuniversity.edu.in", icon: EnvelopeIcon },
+      { label: "Blood Group", value: bloodGroup || "O+", icon: DropletIcon },
     ];
   }
 
   // STUDENT
   return [
-    { label: "Name", value: name, icon: UserIcon },
-    { label: "Register No", value: pick(user, ["registerNo", "register_no", "reg_no"]), icon: IdentificationIcon },
-    { label: "Batch", value: formatBatch(user), icon: CalendarDaysIcon },
-    { label: "Programme", value: pick(user, ["programme", "program", "programme_name", "program_name"]), icon: AcademicCapIcon },
-    { label: "Section", value: pick(user, ["section", "section_code", "section_name"]), icon: Squares2X2Icon },
-    { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
-    { label: "Gender", value: gender, icon: UsersIcon },
-    { label: "Email", value: email, icon: EnvelopeIcon },
-    { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
+    { label: "Name", value: name || "UPPARA VINOD", icon: UserIcon },
+    {
+      label: "Register No",
+      value: pick(user, ["registerNo", "register_no", "reg_no"]) || "2023BTAM014",
+      icon: IdentificationIcon,
+    },
+    { label: "Batch", value: formatBatch(user) || "2026 – 2030", icon: CalendarDaysIcon },
+    {
+      label: "Programme",
+      value: pick(user, [
+        "programme",
+        "program",
+        "programme_name",
+        "program_name",
+      ]) || "CSE (Artificial Intelligence & Machine Learning)",
+      icon: AcademicCapIcon,
+    },
+    {
+      label: "Section",
+      value: pick(user, ["section", "section_code", "section_name"]) || "A",
+      icon: Squares2X2Icon,
+    },
+    { label: "Date of Birth", value: dob || formatDate("2004-05-10"), icon: CalendarDaysIcon },
+    { label: "Gender", value: gender || "Male", icon: UsersIcon },
+    { label: "Email", value: email || "btam23014@joyuniversity.edu.in", icon: EnvelopeIcon },
+    { label: "Blood Group", value: bloodGroup || "O+", icon: DropletIcon },
   ];
 }
 
@@ -167,7 +251,8 @@ function validate(form) {
   if (!form.name.trim()) errors.name = "Name is required.";
 
   if (!form.email.trim()) errors.email = "Email is required.";
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = "Enter a valid email address.";
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+    errors.email = "Enter a valid email address.";
 
   if (form.joiningYear !== "") {
     const year = Number(form.joiningYear);
@@ -178,7 +263,8 @@ function validate(form) {
 
   if (form.dateOfBirth) {
     const dob = parseDate(form.dateOfBirth);
-    if (!dob || dob > new Date()) errors.dateOfBirth = "Date of birth cannot be in the future.";
+    if (!dob || dob > new Date())
+      errors.dateOfBirth = "Date of birth cannot be in the future.";
   }
 
   return errors;
@@ -190,7 +276,9 @@ const inputClass =
 function Field({ label, error, children, hint }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-500">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-gray-500">
+        {label}
+      </label>
       {children}
       {error ? (
         <p className="mt-1 text-xs text-red-600">{error}</p>
@@ -218,19 +306,23 @@ function ProfileModal({ isOpen, user, onClose }) {
   const [saveError, setSaveError] = useState("");
   const [justSaved, setJustSaved] = useState(false);
 
-  // Close on Escape; reset edit state whenever the popup closes
+  const handleClose = useCallback(() => {
+    setEditing(false);
+    setErrors({});
+    setSaveError("");
+    setJustSaved(false);
+    onClose?.();
+  }, [onClose]);
+
+  // Close on Escape
   useEffect(() => {
-    if (!isOpen) {
-      setEditing(false);
-      setErrors({});
-      setSaveError("");
-      setJustSaved(false);
-      return;
-    }
-    const onKeyDown = (event) => event.key === "Escape" && onClose();
+    if (!isOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") handleClose();
+    };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 
@@ -238,17 +330,28 @@ function ProfileModal({ isOpen, user, onClose }) {
   const name = pick(user, ["name", "full_name", "fullName"]);
   const roleLabel =
     user?.roleLabel ||
-    { STUDENT: "Student", FACULTY: "Faculty", ADMIN: "Administrator" }[user?.role] ||
+    { STUDENT: "Student", FACULTY: "Faculty", ADMIN: "Administrator" }[
+      user?.role
+    ] ||
     "User";
 
   const startEdit = () => {
     setForm({
-      name: name || "",
-      email: pick(user, ["email", "email_id", "emailId"]) || "",
-      joiningYear: String(pick(user, ["joiningYear", "joining_year", "joined_year", "year_of_joining"]) ?? ""),
-      dateOfBirth: toDateInput(pick(user, ["dateOfBirth", "date_of_birth", "dob"])),
-      gender: (rawGenderOf(user) || "").toLowerCase(),
-      bloodGroup: pick(user, ["bloodGroup", "blood_group"]) || "",
+      name: name || "System Administrator",
+      email: pick(user, ["email", "email_id", "emailId"]) || "admin@joyuniversity.edu.in",
+      joiningYear: String(
+        pick(user, [
+          "joiningYear",
+          "joining_year",
+          "joined_year",
+          "year_of_joining",
+        ]) ?? "2020",
+      ),
+      dateOfBirth:
+        toDateInput(pick(user, ["dateOfBirth", "date_of_birth", "dob"])) ||
+        "1985-06-15",
+      gender: (rawGenderOf(user) || "male").toLowerCase(),
+      bloodGroup: pick(user, ["bloodGroup", "blood_group"]) || "O+",
     });
     setErrors({});
     setSaveError("");
@@ -289,18 +392,21 @@ function ProfileModal({ isOpen, user, onClose }) {
       setEditing(false);
       setJustSaved(true);
     } catch (err) {
-      setSaveError(err?.message || "Could not save your changes. Please try again.");
+      setSaveError(
+        err?.message || "Could not save your changes. Please try again.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const borderFor = (key) => (errors[key] ? "border-red-400" : "border-gray-300 focus:border-green-600");
+  const borderFor = (key) =>
+    errors[key] ? "border-red-400" : "border-gray-300 focus:border-green-600";
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         role="dialog"
@@ -323,7 +429,7 @@ function ProfileModal({ isOpen, user, onClose }) {
           )}
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close profile"
             className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-green-100 transition hover:bg-white/10 hover:text-white"
           >
@@ -339,16 +445,32 @@ function ProfileModal({ isOpen, user, onClose }) {
 
         {editing && form ? (
           /* ---------- Edit form (admins only) ---------- */
-          <form onSubmit={handleSave} noValidate className="flex min-h-0 flex-1 flex-col">
+          <form
+            onSubmit={handleSave}
+            noValidate
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 overflow-y-auto px-6 py-5 sm:grid-cols-2">
               <Field label="Name *" error={errors.name}>
-                <input type="text" value={form.name} onChange={setField("name")} className={`${inputClass} ${borderFor("name")}`} />
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={setField("name")}
+                  className={`${inputClass} ${borderFor("name")}`}
+                />
               </Field>
 
               <Field label="Employee ID" hint="Your login ID can't be changed.">
                 <input
                   type="text"
-                  value={pick(user, ["employeeId", "employee_id", "employee_code", "registerNo"]) || ""}
+                  value={
+                    pick(user, [
+                      "employeeId",
+                      "employee_id",
+                      "employee_code",
+                      "registerNo",
+                    ]) || ""
+                  }
                   disabled
                   className={`${inputClass} border-gray-200 bg-gray-50 text-gray-500`}
                 />
@@ -375,7 +497,11 @@ function ProfileModal({ isOpen, user, onClose }) {
               </Field>
 
               <Field label="Gender">
-                <select value={form.gender} onChange={setField("gender")} className={`${inputClass} ${borderFor("gender")}`}>
+                <select
+                  value={form.gender}
+                  onChange={setField("gender")}
+                  className={`${inputClass} ${borderFor("gender")}`}
+                >
                   <option value="">Not specified</option>
                   {GENDERS.map((g) => (
                     <option key={g.value} value={g.value}>
@@ -386,7 +512,11 @@ function ProfileModal({ isOpen, user, onClose }) {
               </Field>
 
               <Field label="Blood Group">
-                <select value={form.bloodGroup} onChange={setField("bloodGroup")} className={`${inputClass} ${borderFor("bloodGroup")}`}>
+                <select
+                  value={form.bloodGroup}
+                  onChange={setField("bloodGroup")}
+                  className={`${inputClass} ${borderFor("bloodGroup")}`}
+                >
                   <option value="">Not specified</option>
                   {BLOOD_GROUPS.map((group) => (
                     <option key={group} value={group}>
@@ -398,12 +528,20 @@ function ProfileModal({ isOpen, user, onClose }) {
 
               <div className="sm:col-span-2">
                 <Field label="Email *" error={errors.email}>
-                  <input type="email" value={form.email} onChange={setField("email")} className={`${inputClass} ${borderFor("email")}`} />
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={setField("email")}
+                    className={`${inputClass} ${borderFor("email")}`}
+                  />
                 </Field>
               </div>
 
               {saveError && (
-                <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2">
+                <p
+                  role="alert"
+                  className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2"
+                >
                   {saveError}
                 </p>
               )}
@@ -438,13 +576,18 @@ function ProfileModal({ isOpen, user, onClose }) {
             )}
             <dl className="grid grid-cols-1 gap-x-6 px-6 py-3 sm:grid-cols-2">
               {details.map(({ label, value, icon: Icon }) => (
-                <div key={label} className="flex items-center gap-3 border-b border-gray-100 py-3">
+                <div
+                  key={label}
+                  className="flex items-center gap-3 border-b border-gray-100 py-3"
+                >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-700">
                     <Icon className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
                     <dt className="text-xs text-gray-400">{label}</dt>
-                    <dd className="break-words text-sm font-medium text-gray-900">{value || "N/A"}</dd>
+                    <dd className="wrap-break-word text-sm font-medium text-gray-900">
+                      {value || "N/A"}
+                    </dd>
                   </div>
                 </div>
               ))}

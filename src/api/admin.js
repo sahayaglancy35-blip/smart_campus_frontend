@@ -164,3 +164,19 @@ export async function deleteClassroom(token, id) {
     token,
   });
 }
+
+export async function fetchAdminProfile(token, signal) {
+  return apiClient("/auth/profile", {
+    method: "GET",
+    token,
+    signal,
+  });
+}
+
+export async function updateAdminProfile(token, data) {
+  return apiClient("/auth/profile", {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
