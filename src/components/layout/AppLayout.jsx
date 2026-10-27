@@ -26,7 +26,6 @@ export function AppLayout({
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header
         user={user}
-        activeTitle={pageTitle}
         onRefresh={onRefresh}
         onToggleSidebar={() => setMobileSidebarOpen(true)}
       />

@@ -3,28 +3,8 @@ import { fetchStudentCourses } from "../../api/student";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import Badge from "../common/Badge";
+import { deliveryStyleOf, DeliveryLegend } from "../common/deliveryStyle";
 import { BookOpenIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
-
-/* Card colors by delivery type: green for theory papers,
-   amber for lab courses. */
-const DELIVERY_STYLE = {
-  THEORY: {
-    card: "border-green-200 bg-green-50/60",
-    code: "bg-green-100 text-green-800",
-    value: "text-green-800"
-  },
-  LAB: {
-    card: "border-amber-200 bg-amber-50/70",
-    code: "bg-amber-100 text-amber-800",
-    value: "text-amber-800"
-  },
-};
-
-function deliveryStyleOf(type) {
-  const key = String(type || "THEORY").toUpperCase();
-  if (key.includes("LAB") || key.includes("PRACTICAL")) return DELIVERY_STYLE.LAB;
-  return DELIVERY_STYLE.THEORY;
-}
 
 export function StudentCoursesView({ token }) {
   const [courses, setCourses] = useState([]);
@@ -114,19 +94,12 @@ export function StudentCoursesView({ token }) {
       </div>
 
       {/* Color legend */}
-      <div className="flex items-center gap-4 text-xs font-medium text-gray-600">
-        {Object.values(DELIVERY_STYLE).map((style) => (
-          <span key={style.label} className="inline-flex items-center gap-1.5">
-            <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-            {style.label}
-          </span>
-        ))}
-      </div>
+      <DeliveryLegend />
 
       {/* Courses List Grid */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {courses.map((course) => {
-          const style = deliveryStyleOf(course.delivery_type);
+          const style = deliveryStyleOf(course);
 
           return (
             <article

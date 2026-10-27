@@ -3,6 +3,7 @@ import {
   XMarkIcon,
   UserIcon,
   IdentificationIcon,
+  PhoneIcon,
   EnvelopeIcon,
   CalendarDaysIcon,
   AcademicCapIcon,
@@ -39,6 +40,8 @@ function DropletIcon({ className = "h-5 w-5" }) {
    Dashboard -> AppLayout -> Header. App.jsx wraps the dashboard in
    <ProfileUpdateContext.Provider> (admins only) and the popup reads it. */
 export const ProfileUpdateContext = createContext(null);
+
+const PHONE_KEYS = ["phone", "phone_no", "phoneNo", "phone_number", "mobile", "mobile_no"];
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENDERS = [
@@ -115,6 +118,7 @@ function buildDetails(user) {
   const bloodGroup = pick(user, ["bloodGroup", "blood_group"]);
   const joiningYear = pick(user, ["joiningYear", "joining_year", "joined_year", "year_of_joining"]);
   const gender = capitalize(rawGenderOf(user));
+  const phone = pick(user, PHONE_KEYS);
 
   if (role === "FACULTY") {
     return [
@@ -127,6 +131,7 @@ function buildDetails(user) {
       { label: "Department", value: pick(user, ["department", "department_name", "dept"]), icon: BuildingLibraryIcon },
       { label: "Gender", value: gender, icon: UsersIcon },
       { label: "Email", value: email, icon: EnvelopeIcon },
+      { label: "Phone No", value: phone, icon: PhoneIcon },
       { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
     ];
   }
@@ -139,6 +144,7 @@ function buildDetails(user) {
       { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
       { label: "Gender", value: gender, icon: UsersIcon },
       { label: "Email", value: email, icon: EnvelopeIcon },
+      { label: "Phone No", value: phone, icon: PhoneIcon },
       { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
     ];
   }
@@ -153,6 +159,7 @@ function buildDetails(user) {
     { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
     { label: "Gender", value: gender, icon: UsersIcon },
     { label: "Email", value: email, icon: EnvelopeIcon },
+    { label: "Phone No", value: phone, icon: PhoneIcon },
     { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
   ];
 }
@@ -173,6 +180,13 @@ function validate(form) {
     const year = Number(form.joiningYear);
     if (!Number.isInteger(year) || year < 1950 || year > currentYear) {
       errors.joiningYear = `Enter a year between 1950 and ${currentYear}.`;
+    }
+  }
+
+  if (form.phone.trim()) {
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits.length < 7 || digits.length > 15 || !/^[\d\s()+-]+$/.test(form.phone.trim())) {
+      errors.phone = "Enter a valid phone number.";
     }
   }
 
@@ -245,6 +259,7 @@ function ProfileModal({ isOpen, user, onClose }) {
     setForm({
       name: name || "",
       email: pick(user, ["email", "email_id", "emailId"]) || "",
+      phone: String(pick(user, PHONE_KEYS) ?? ""),
       joiningYear: String(pick(user, ["joiningYear", "joining_year", "joined_year", "year_of_joining"]) ?? ""),
       dateOfBirth: toDateInput(pick(user, ["dateOfBirth", "date_of_birth", "dob"])),
       gender: (rawGenderOf(user) || "").toLowerCase(),
@@ -281,6 +296,7 @@ function ProfileModal({ isOpen, user, onClose }) {
       await saveProfile({
         name: form.name.trim(),
         email: form.email.trim(),
+        phone: form.phone.trim() || null,
         joiningYear: form.joiningYear === "" ? null : Number(form.joiningYear),
         dateOfBirth: form.dateOfBirth || null,
         gender: form.gender || null,
@@ -396,11 +412,20 @@ function ProfileModal({ isOpen, user, onClose }) {
                 </select>
               </Field>
 
-              <div className="sm:col-span-2">
-                <Field label="Email *" error={errors.email}>
-                  <input type="email" value={form.email} onChange={setField("email")} className={`${inputClass} ${borderFor("email")}`} />
-                </Field>
-              </div>
+              <Field label="Email *" error={errors.email}>
+                <input type="email" value={form.email} onChange={setField("email")} className={`${inputClass} ${borderFor("email")}`} />
+              </Field>
+
+              <Field label="Phone No" error={errors.phone}>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={setField("phone")}
+                  placeholder="e.g. +91 98765 43210"
+                  className={`${inputClass} ${borderFor("phone")}`}
+                />
+              </Field>
 
               {saveError && (
                 <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2">

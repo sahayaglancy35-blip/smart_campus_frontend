@@ -130,6 +130,13 @@ export function App() {
       // Profile popup fields (field names are best guesses: adjust to your API)
       dateOfBirth: profile.date_of_birth || profile.dob || null,
       bloodGroup: profile.blood_group || null,
+      phone:
+        profile.phone ||
+        profile.phone_no ||
+        profile.phone_number ||
+        profile.mobile ||
+        profile.mobile_no ||
+        null,
       // student
       batch: profile.batch || null, // or: batch_start_year / batch_end_year
       programme: profile.programme_name || profile.programme || null,
@@ -351,6 +358,7 @@ export function App() {
         date_of_birth: values.dateOfBirth,
         gender: values.gender,
         blood_group: values.bloodGroup,
+        phone: values.phone,
       });
 
       if (result && result.success === false) {
@@ -364,6 +372,7 @@ export function App() {
         joiningYear: values.joiningYear,
         dateOfBirth: values.dateOfBirth,
         bloodGroup: values.bloodGroup,
+        phone: values.phone,
         gender: values.gender || user?.gender || "male",
         genderLabel: values.gender,
       };
