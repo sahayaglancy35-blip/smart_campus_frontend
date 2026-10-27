@@ -4,7 +4,8 @@ import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
-import { deliveryStyleOf, DeliveryLegend } from "./common/deliveryStyle";
+import { deliveryStyleOf } from "../common/deliveryStyle";
+import { DeliveryLegend } from "../common/DeliveryLegend";
 
 export function AttendanceHistoryView({ token, initialFilter = "ALL" }) {
   const [records, setRecords] = useState([]);

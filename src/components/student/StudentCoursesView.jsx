@@ -3,7 +3,8 @@ import { fetchStudentCourses } from "../../api/student";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import Badge from "../common/Badge";
-import { deliveryStyleOf, DeliveryLegend } from "./common/deliveryStyle";
+import { deliveryStyleOf } from "../common/deliveryStyle";
+import { DeliveryLegend } from "../common/DeliveryLegend";
 import { BookOpenIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 
 export function StudentCoursesView({ token }) {

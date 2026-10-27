@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { fetchStudentAttendanceSummary } from "../../api/student";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
-import { deliveryStyleOf, DeliveryLegend } from "./common/deliveryStyle";
+import { deliveryStyleOf } from "../common/deliveryStyle";
+import { DeliveryLegend } from "../common/DeliveryLegend";
 import {
   ChartPieIcon,
   CheckCircleIcon,
