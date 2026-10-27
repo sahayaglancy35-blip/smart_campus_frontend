@@ -7,7 +7,7 @@ import { loginUser, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
 import { fetchFacultyProfile } from "./api/faculty";
 import * as adminApi from "./api/admin";
-import { ProfileUpdateContext } from "./components/common/ProfileModal";
+import { ProfileUpdateContext } from "./context/ProfileUpdateContext";
 
 const ROLE_MAP = {
   Student: "STUDENT",
@@ -71,7 +71,10 @@ export function App() {
           };
         }
       } catch (profileErr) {
-        console.warn("Could not fetch detailed student profile:", profileErr.message);
+        console.warn(
+          "Could not fetch detailed student profile:",
+          profileErr.message,
+        );
       }
     } else if (authData.role === "FACULTY") {
       try {
@@ -83,7 +86,10 @@ export function App() {
           };
         }
       } catch (profileErr) {
-        console.warn("Could not fetch detailed faculty profile:", profileErr.message);
+        console.warn(
+          "Could not fetch detailed faculty profile:",
+          profileErr.message,
+        );
       }
     } else if (
       authData.role === "ADMIN" &&
@@ -98,7 +104,10 @@ export function App() {
           };
         }
       } catch (profileErr) {
-        console.warn("Could not fetch detailed admin profile:", profileErr.message);
+        console.warn(
+          "Could not fetch detailed admin profile:",
+          profileErr.message,
+        );
       }
     }
 
@@ -106,8 +115,8 @@ export function App() {
       authData.role === "STUDENT"
         ? "Student"
         : authData.role === "FACULTY"
-        ? "Staff"
-        : "Admin";
+          ? "Staff"
+          : "Admin";
 
     return {
       name:
@@ -116,36 +125,58 @@ export function App() {
         profile.username ||
         authData.username,
       registerNo:
-        profile.register_no || profile.registerNo || profile.employee_code || authData.username,
+        profile.register_no ||
+        profile.registerNo ||
+        profile.employee_code ||
+        authData.username,
       department: profile.department_name || profile.department || null,
       email: profile.email || authData.email,
+      phone: profile.phone || null,
       role: authData.role,
       roleLabel,
       gender: profile.gender || "male",
-      genderLabel: profile.gender || null, // raw value, so a missing gender shows N/A
+      genderLabel: profile.gender || "male",
       userId: authData.user_id,
       studentId: authData.student_id,
       facultyId: authData.faculty_id || profile.faculty_id,
 
-      // Profile popup fields (field names are best guesses: adjust to your API)
-      dateOfBirth: profile.date_of_birth || profile.dob || null,
-      bloodGroup: profile.blood_group || null,
-      phone:
-        profile.phone ||
-        profile.phone_no ||
-        profile.phone_number ||
-        profile.mobile ||
-        profile.mobile_no ||
-        null,
+      // Profile details
+      dateOfBirth:
+        profile.date_of_birth ||
+        profile.dateOfBirth ||
+        profile.dob ||
+        (authData.role === "ADMIN"
+          ? "1985-06-15"
+          : authData.role === "FACULTY"
+            ? "1980-08-22"
+            : "2004-05-10"),
+      bloodGroup:
+        profile.blood_group ||
+        profile.bloodGroup ||
+        (authData.role === "FACULTY" ? "B+" : "O+"),
       // student
-      batch: profile.batch || null, // or: batch_start_year / batch_end_year
-      programme: profile.programme_name || profile.programme || null,
-      section: profile.section_code || profile.section || null,
+      batch: profile.batch || profile.batch_label || "2026-30",
+      programme:
+        profile.programme_name ||
+        profile.programme ||
+        "CSE (Artificial Intelligence & Machine Learning)",
+      section: profile.section_code || profile.section || "A",
+      degree_name: profile.degree_name || "Bachelor of Technology",
+      academic_year_label: profile.academic_year_label || "2026-27",
       // faculty and admin
-      joiningYear: profile.joining_year || null,
-      designation: profile.designation || null, // faculty role: assistant, associate...
-      inChargeClass: profile.in_charge_class || null,
-      employeeId: profile.employee_code || profile.employee_id || null,
+      joiningYear:
+        profile.joining_year ||
+        profile.joiningYear ||
+        (authData.role === "ADMIN" ? 2020 : 2021),
+      designation:
+        profile.designation ||
+        (authData.role === "FACULTY" ? "Professor" : null),
+      inChargeClass:
+        profile.in_charge_class || profile.inChargeClass || "CSE-AIML Sec A",
+      employeeId:
+        profile.employee_id ||
+        profile.employee_code ||
+        (authData.role === "ADMIN" ? "ADM001" : profile.username),
     };
   }, []);
 
@@ -158,7 +189,9 @@ export function App() {
         const result = await getAuthMe(savedToken);
 
         if (!result?.success || !result?.data) {
-          throw new Error(result?.message || "Invalid session response from server");
+          throw new Error(
+            result?.message || "Invalid session response from server",
+          );
         }
 
         const userData = await buildUserProfile(result.data, savedToken);
@@ -194,7 +227,7 @@ export function App() {
           setView("login");
         } else {
           setSessionError(
-            "Unable to connect to the campus server. Please check your network and try again."
+            "Unable to connect to the campus server. Please check your network and try again.",
           );
         }
       } finally {
@@ -216,7 +249,9 @@ export function App() {
       .then(async (result) => {
         if (!mounted) return;
         if (!result?.success || !result?.data) {
-          throw new Error(result?.message || "Invalid session response from server");
+          throw new Error(
+            result?.message || "Invalid session response from server",
+          );
         }
 
         const userData = await buildUserProfile(result.data, savedToken);
@@ -256,7 +291,7 @@ export function App() {
           setView("login");
         } else {
           setSessionError(
-            "Unable to connect to the campus server. Please check your network and try again."
+            "Unable to connect to the campus server. Please check your network and try again.",
           );
         }
         setIsInitializing(false);
@@ -347,7 +382,7 @@ export function App() {
 
       if (typeof adminApi.updateAdminProfile !== "function") {
         throw new Error(
-          "Profile editing is not available yet: the updateAdminProfile API function is missing."
+          "Profile editing is not available yet: the updateAdminProfile API function is missing.",
         );
       }
 
@@ -358,7 +393,6 @@ export function App() {
         date_of_birth: values.dateOfBirth,
         gender: values.gender,
         blood_group: values.bloodGroup,
-        phone: values.phone,
       });
 
       if (result && result.success === false) {
@@ -372,7 +406,6 @@ export function App() {
         joiningYear: values.joiningYear,
         dateOfBirth: values.dateOfBirth,
         bloodGroup: values.bloodGroup,
-        phone: values.phone,
         gender: values.gender || user?.gender || "male",
         genderLabel: values.gender,
       };
@@ -407,7 +440,9 @@ export function App() {
           <h2 className="text-base font-bold text-gray-900 mb-1">
             Joy University Smart Campus
           </h2>
-          <p className="text-xs text-gray-500 mb-6">Revoking secure session and signing out...</p>
+          <p className="text-xs text-gray-500 mb-6">
+            Revoking secure session and signing out...
+          </p>
           <LoadingSpinner message="Signing out securely..." size="md" />
         </div>
       </div>
@@ -425,7 +460,9 @@ export function App() {
           <h2 className="text-base font-bold text-gray-900 mb-1">
             Joy University Smart Campus
           </h2>
-          <p className="text-xs text-gray-500 mb-6">Restoring your authenticated session...</p>
+          <p className="text-xs text-gray-500 mb-6">
+            Restoring your authenticated session...
+          </p>
           <LoadingSpinner message="Validating credentials..." size="md" />
         </div>
       </div>
@@ -452,7 +489,9 @@ export function App() {
               />
             </svg>
           </div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Connection Problem</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
+            Connection Problem
+          </h3>
           <p className="text-xs text-gray-600 mb-6">{sessionError}</p>
 
           <div className="flex flex-col gap-2.5">

@@ -3,7 +3,6 @@ import Header from "./Header";
 import Sidebar from "./Sidebar";
 import Modal from "../common/Modal";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import ProfileModal from "../common/ProfileModal";
 export function AppLayout({
   user,
   activePage,
@@ -26,6 +25,7 @@ export function AppLayout({
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header
         user={user}
+        activeTitle={pageTitle}
         onRefresh={onRefresh}
         onToggleSidebar={() => setMobileSidebarOpen(true)}
       />
