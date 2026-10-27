@@ -1,10 +1,25 @@
+import { useState } from "react";
 import {
   AcademicCapIcon,
   Bars3Icon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import ProfileModal from "../common/ProfileModal";
 
-export function Header({ user, onToggleSidebar, activeTitle, onRefresh }) {
+/* ================================================================
+   HEADER
+   Props:
+   - user            logged-in user object
+   - onToggleSidebar opens the sidebar on small screens
+   - activeTitle     current page title shown next to the user
+                     (pageTitle is also accepted)
+   - onRefresh       optional; if not given, the refresh button
+                     reloads the page
+   Clicking the avatar circle opens the profile popup.
+================================================================= */
+export function Header({ user, onToggleSidebar, activeTitle, pageTitle, onRefresh }) {
+  const [showProfile, setShowProfile] = useState(false);
+
   const roleDisplay = {
     STUDENT: "Student",
     FACULTY: "Faculty Member",
@@ -12,9 +27,19 @@ export function Header({ user, onToggleSidebar, activeTitle, onRefresh }) {
   };
 
   const role = user?.role || "STUDENT";
+  const title = activeTitle || pageTitle;
+
+  const handleRefresh = () => {
+    if (onRefresh) {
+      onRefresh();
+    } else {
+      window.location.reload();
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8 shadow-xs">
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-xs sm:px-6 lg:px-8">
+      {/* Left: menu button (mobile) + brand */}
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -38,47 +63,62 @@ export function Header({ user, onToggleSidebar, activeTitle, onRefresh }) {
                 ERP
               </span>
             </div>
-            <p className="text-xs text-gray-500 font-medium hidden sm:block">
+            <p className="hidden text-xs font-medium text-gray-500 sm:block">
               Smart Campus Management System
             </p>
           </div>
         </div>
       </div>
 
-      {/* User Status Bar */}
-      <div className="flex items-center gap-3 sm:gap-4">
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            title="Refresh current data"
-            className="rounded-xl border border-gray-200 bg-gray-50/80 p-2 text-gray-600 transition hover:bg-green-50 hover:text-green-800 hover:border-green-200 focus:outline-hidden"
-            aria-label="Refresh data"
-          >
-            <ArrowPathIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
-        )}
+      {/* Right: refresh, page title, user */}
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={handleRefresh}
+          aria-label="Refresh"
+          title="Refresh"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-xs transition hover:bg-gray-50 hover:text-green-800"
+        >
+          <ArrowPathIcon className="h-5 w-5" />
+        </button>
 
-        {activeTitle && (
-          <div className="hidden lg:flex items-center text-sm font-semibold text-gray-700 border-l border-gray-200 pl-4">
-            {activeTitle}
-          </div>
+        {title && (
+          <>
+            <span className="hidden h-6 w-px bg-gray-200 md:block" />
+            <span className="hidden text-sm font-medium text-gray-700 md:block">
+              {title}
+            </span>
+          </>
         )}
 
         <div className="flex items-center gap-3">
           <div className="hidden text-right sm:block">
-            <p className="text-sm font-semibold text-gray-900 leading-tight">
+            <p className="text-sm font-semibold leading-tight text-gray-900">
               {user?.name || "Authenticated User"}
             </p>
             <p className="text-xs font-medium text-green-700">
               {roleDisplay[role] || role}
             </p>
           </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 ring-2 ring-green-600/20">
+
+          {/* Clicking the avatar opens the profile popup */}
+          <button
+            type="button"
+            onClick={() => setShowProfile(true)}
+            aria-label="View my profile"
+            title="View my profile"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 ring-2 ring-green-600/20 transition hover:scale-105 hover:ring-green-600/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+          >
             {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-          </div>
+          </button>
         </div>
       </div>
+
+      <ProfileModal
+        isOpen={showProfile}
+        user={user}
+        onClose={() => setShowProfile(false)}
+      />
     </header>
   );
 }

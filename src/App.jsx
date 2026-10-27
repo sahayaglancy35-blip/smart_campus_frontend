@@ -6,6 +6,8 @@ import LoadingSpinner from "./components/common/LoadingSpinner";
 import { loginUser, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
 import { fetchFacultyProfile } from "./api/faculty";
+import * as adminApi from "./api/admin";
+import { ProfileUpdateContext } from "./components/common/ProfileModal";
 
 const ROLE_MAP = {
   Student: "STUDENT",
@@ -83,6 +85,21 @@ export function App() {
       } catch (profileErr) {
         console.warn("Could not fetch detailed faculty profile:", profileErr.message);
       }
+    } else if (
+      authData.role === "ADMIN" &&
+      typeof adminApi.fetchAdminProfile === "function"
+    ) {
+      try {
+        const profileResult = await adminApi.fetchAdminProfile(authToken);
+        if (profileResult?.success && profileResult?.data) {
+          profile = {
+            ...authData,
+            ...profileResult.data,
+          };
+        }
+      } catch (profileErr) {
+        console.warn("Could not fetch detailed admin profile:", profileErr.message);
+      }
     }
 
     const roleLabel =
@@ -105,9 +122,23 @@ export function App() {
       role: authData.role,
       roleLabel,
       gender: profile.gender || "male",
+      genderLabel: profile.gender || null, // raw value, so a missing gender shows N/A
       userId: authData.user_id,
       studentId: authData.student_id,
       facultyId: authData.faculty_id || profile.faculty_id,
+
+      // Profile popup fields (field names are best guesses: adjust to your API)
+      dateOfBirth: profile.date_of_birth || profile.dob || null,
+      bloodGroup: profile.blood_group || null,
+      // student
+      batch: profile.batch || null, // or: batch_start_year / batch_end_year
+      programme: profile.programme_name || profile.programme || null,
+      section: profile.section_code || profile.section || null,
+      // faculty and admin
+      joiningYear: profile.joining_year || null,
+      designation: profile.designation || null, // faculty role: assistant, associate...
+      inChargeClass: profile.in_charge_class || null,
+      employeeId: profile.employee_code || profile.employee_id || null,
     };
   }, []);
 
@@ -302,6 +333,51 @@ export function App() {
     setView("login");
   };
 
+  // Admin-only: save edits made in the profile popup
+  const handleProfileUpdate = useCallback(
+    async (values) => {
+      const currentToken = token || getStoredToken();
+
+      if (typeof adminApi.updateAdminProfile !== "function") {
+        throw new Error(
+          "Profile editing is not available yet: the updateAdminProfile API function is missing."
+        );
+      }
+
+      const result = await adminApi.updateAdminProfile(currentToken, {
+        full_name: values.name,
+        email: values.email,
+        joining_year: values.joiningYear,
+        date_of_birth: values.dateOfBirth,
+        gender: values.gender,
+        blood_group: values.bloodGroup,
+      });
+
+      if (result && result.success === false) {
+        throw new Error(result.message || "Could not update your profile.");
+      }
+
+      const updatedUser = {
+        ...user,
+        name: values.name,
+        email: values.email,
+        joiningYear: values.joiningYear,
+        dateOfBirth: values.dateOfBirth,
+        bloodGroup: values.bloodGroup,
+        gender: values.gender || user?.gender || "male",
+        genderLabel: values.gender,
+      };
+
+      setUser(updatedUser);
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+      } catch {
+        // Ignore storage errors
+      }
+    },
+    [token, user],
+  );
+
   const handleRetrySession = () => {
     const savedToken = getStoredToken();
     if (savedToken) {
@@ -419,7 +495,13 @@ export function App() {
   }
 
   // 5. Authenticated ERP Dashboard
-  return <Dashboard user={user} token={token} onLogout={handleLogout} />;
+  return (
+    <ProfileUpdateContext.Provider
+      value={user?.role === "ADMIN" ? handleProfileUpdate : null}
+    >
+      <Dashboard user={user} token={token} onLogout={handleLogout} />
+    </ProfileUpdateContext.Provider>
+  );
 }
 
 export default App;
