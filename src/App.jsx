@@ -27,7 +27,7 @@ function getStoredToken() {
       null
     );
   } catch {
-    return null;
+    return null;  
   }
 }
 
