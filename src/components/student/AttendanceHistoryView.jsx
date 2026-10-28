@@ -4,6 +4,8 @@ import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
+import { deliveryStyleOf } from "../common/deliveryStyle";
+import { DeliveryLegend } from "../common/DeliveryLegend";
 
 export function AttendanceHistoryView({ token, initialFilter = "ALL" }) {
   const [records, setRecords] = useState([]);
@@ -63,18 +65,29 @@ export function AttendanceHistoryView({ token, initialFilter = "ALL" }) {
     {
       header: "Subject Code",
       key: "subject_code",
-      render: (row) => (
-        <span className="font-mono text-xs font-bold text-green-800 bg-green-50 px-2 py-0.5 rounded">
-          {row.subject_code}
-        </span>
-      ),
+      render: (row) => {
+        const style = deliveryStyleOf(row);
+        return (
+          <span className={`rounded px-2 py-0.5 font-mono text-xs font-bold ${style.code}`}>
+            {row.subject_code}
+          </span>
+        );
+      },
     },
     {
       header: "Subject Name",
       key: "subject_name",
-      render: (row) => (
-        <span className="text-gray-900 font-medium">{row.subject_name}</span>
-      ),
+      render: (row) => {
+        const style = deliveryStyleOf(row);
+        return (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-gray-900">{row.subject_name}</span>
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}>
+              {style.label}
+            </span>
+          </span>
+        );
+      },
     },
     {
       header: "Status",
@@ -103,7 +116,7 @@ export function AttendanceHistoryView({ token, initialFilter = "ALL" }) {
 
   return (
     <div className="space-y-6">
-      {/* Filter Tabs */}
+      {/* Filter Tabs + Theory/Lab legend */}
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-3">
         <button
           type="button"
@@ -149,6 +162,8 @@ export function AttendanceHistoryView({ token, initialFilter = "ALL" }) {
         >
           Absent Only ({records.filter((r) => r.status === "ABSENT").length})
         </button>
+
+        <DeliveryLegend className="ml-auto" />
       </div>
 
       <DataTable
