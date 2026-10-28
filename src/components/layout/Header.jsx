@@ -82,15 +82,6 @@ export function Header({ user, onToggleSidebar, activeTitle, pageTitle, onRefres
           <ArrowPathIcon className="h-5 w-5" />
         </button>
 
-        {title && (
-          <>
-            <span className="hidden h-6 w-px bg-gray-200 md:block" />
-            <span className="hidden text-sm font-medium text-gray-700 md:block">
-              {title}
-            </span>
-          </>
-        )}
-
         <div className="flex items-center gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-sm font-semibold leading-tight text-gray-900">
