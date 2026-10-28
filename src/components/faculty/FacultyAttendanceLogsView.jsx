@@ -10,6 +10,8 @@ import Badge from "../common/Badge";
 import Modal from "../common/Modal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import { deliveryStyleOf } from "../common/deliveryStyle";
+import { DeliveryLegend } from "../common/DeliveryLegend";
 import {
   ClockIcon,
   CheckCircleIcon,
@@ -103,17 +105,33 @@ export function FacultyAttendanceLogsView({ token }) {
     {
       header: "Course & Section",
       key: "subject",
-      render: (row) => (
-        <div>
-          <div className="font-bold text-gray-900">
-            {row.subject_code ? `${row.subject_code} - ` : ""}
-            {row.subject_name || "General Lecture"}
+      render: (row) => {
+        const style = deliveryStyleOf(row);
+        return (
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              {row.subject_code && (
+                <span
+                  className={`rounded px-1.5 py-0.5 font-mono text-xs font-bold ${style.code}`}
+                >
+                  {row.subject_code}
+                </span>
+              )}
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}
+              >
+                {style.label}
+              </span>
+              <span className="font-bold text-gray-900">
+                {row.subject_name || "General Lecture"}
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs text-gray-500">
+              Section: {row.section_code || "A"} • Room: {row.room_no || "—"}
+            </div>
           </div>
-          <div className="text-xs text-gray-500">
-            Section: {row.section_code || "A"} • Room: {row.room_no || "—"}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: "Status",
@@ -187,6 +205,11 @@ export function FacultyAttendanceLogsView({ token }) {
           />
         </div>
       )}
+
+      {/* Theory / Lab color key */}
+      <div className="flex justify-end">
+        <DeliveryLegend />
+      </div>
 
       {/* Sessions Table */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-xs">
