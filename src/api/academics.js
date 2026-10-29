@@ -61,6 +61,17 @@ export async function deleteSchool(token, id) {
 }
 
 // -------------------------------------------------------------
+// Departments
+// -------------------------------------------------------------
+export async function getDepartments(token, params, signal) {
+  return apiClient(withQuery("/departments", params), { token, signal });
+}
+
+export async function getDepartmentById(token, id, signal) {
+  return apiClient(`/departments/${id}`, { token, signal });
+}
+
+// -------------------------------------------------------------
 // Programs / Programmes
 // -------------------------------------------------------------
 export async function getPrograms(token, params, signal) {
@@ -133,6 +144,101 @@ export async function deleteBatch(token, id) {
 // -------------------------------------------------------------
 export async function getDegrees(token, signal) {
   return apiClient("/degrees", { token, signal });
+}
+
+export async function getDegreeById(token, id, signal) {
+  return apiClient(`/degrees/${id}`, { token, signal });
+}
+
+export async function createDegree(token, data) {
+  return apiClient("/degrees", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
+export async function updateDegree(token, id, data) {
+  return apiClient(`/degrees/${id}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
+
+export async function deleteDegree(token, id) {
+  return apiClient(`/degrees/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// -------------------------------------------------------------
+// Academic Years
+// -------------------------------------------------------------
+export async function getAcademicYears(token, params, signal) {
+  return apiClient(withQuery("/academic-years", params), { token, signal });
+}
+
+export async function getAcademicYearById(token, id, signal) {
+  return apiClient(`/academic-years/${id}`, { token, signal });
+}
+
+export async function createAcademicYear(token, data) {
+  return apiClient("/academic-years", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
+export async function updateAcademicYear(token, id, data) {
+  return apiClient(`/academic-years/${id}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
+
+export async function deleteAcademicYear(token, id) {
+  return apiClient(`/academic-years/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// -------------------------------------------------------------
+// Academic Terms
+// -------------------------------------------------------------
+export async function getAcademicTerms(token, params, signal) {
+  return apiClient(withQuery("/academic-terms", params), { token, signal });
+}
+
+export async function getAcademicTermById(token, id, signal) {
+  return apiClient(`/academic-terms/${id}`, { token, signal });
+}
+
+export async function createAcademicTerm(token, data) {
+  return apiClient("/academic-terms", {
+    method: "POST",
+    token,
+    body: data,
+  });
+}
+
+export async function updateAcademicTerm(token, id, data) {
+  return apiClient(`/academic-terms/${id}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
+}
+
+export async function deleteAcademicTerm(token, id) {
+  return apiClient(`/academic-terms/${id}`, {
+    method: "DELETE",
+    token,
+  });
 }
 
 // -------------------------------------------------------------
