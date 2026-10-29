@@ -45,6 +45,7 @@ export const ENDPOINTS = {
   ADMIN_COURSE_OFFERINGS: import.meta.env.VITE_ADMIN_COURSE_OFFERINGS_ENDPOINT || "/course-offerings",
   ADMIN_SECTIONS: import.meta.env.VITE_ADMIN_SECTIONS_ENDPOINT || "/sections",
   ADMIN_TIMETABLE: import.meta.env.VITE_ADMIN_TIMETABLE_ENDPOINT || "/timetable",
+  ADMIN_DESIGNATIONS: import.meta.env.VITE_ADMIN_DESIGNATIONS_ENDPOINT || "/designations",
   ADMIN_ATTENDANCE_SESSIONS:
     import.meta.env.VITE_ADMIN_ATTENDANCE_SESSIONS_ENDPOINT || "/attendance/sessions",
 };

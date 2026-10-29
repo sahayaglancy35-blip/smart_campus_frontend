@@ -8,6 +8,7 @@ import {
   overrideAttendanceRecord,
 } from "../../api/attendance";
 import { getClassrooms, getFaculty } from "../../api/admin";
+import { getTimetableSlots } from "../../api/academics";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
 import Modal from "../common/Modal";
@@ -25,6 +26,7 @@ export function AttendanceSessionsView({ token, user, refreshTrigger = 0 }) {
   const [sessions, setSessions] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [facultyList, setFacultyList] = useState([]);
+  const [timetableSlots, setTimetableSlots] = useState([]);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
@@ -49,10 +51,10 @@ export function AttendanceSessionsView({ token, user, refreshTrigger = 0 }) {
   const [formError, setFormError] = useState("");
 
   const [sessionForm, setSessionForm] = useState({
-    slot_id: 1,
+    slot_id: "",
     session_date: new Date().toISOString().split("T")[0],
-    faculty_id: 1,
-    classroom_id: 1,
+    faculty_id: "",
+    classroom_id: "",
     scheduled_start: `${new Date().toISOString().split("T")[0]} 09:00:00`,
     scheduled_end: `${new Date().toISOString().split("T")[0]} 10:00:00`,
     present_until: `${new Date().toISOString().split("T")[0]} 09:15:00`,
@@ -111,16 +113,18 @@ export function AttendanceSessionsView({ token, user, refreshTrigger = 0 }) {
     async function loadData() {
       try {
         setError("");
-        const [sessionsRes, roomsRes, facRes] = await Promise.all([
+        const [sessionsRes, roomsRes, facRes, slotsRes] = await Promise.all([
           getAttendanceSessions(token, controller.signal),
           getClassrooms(token, controller.signal).catch(() => ({ data: [] })),
           getFaculty(token, controller.signal).catch(() => ({ data: [] })),
+          getTimetableSlots(token, null, controller.signal).catch(() => ({ data: [] })),
         ]);
 
         const fetchedSessions = Array.isArray(sessionsRes?.data) ? sessionsRes.data : [];
         setSessions(fetchedSessions);
         setClassrooms(Array.isArray(roomsRes?.data) ? roomsRes.data : []);
         setFacultyList(Array.isArray(facRes?.data) ? facRes.data : []);
+        setTimetableSlots(Array.isArray(slotsRes?.data) ? slotsRes.data : []);
 
         // Restore active roster session if previously viewing
         try {
@@ -149,15 +153,76 @@ export function AttendanceSessionsView({ token, user, refreshTrigger = 0 }) {
     return () => controller.abort();
   }, [token, reloadTrigger, refreshTrigger, handleViewRoster]);
 
+  const handleSlotSelect = (slotId) => {
+    const selectedSlot = timetableSlots.find((s) => String(s.slot_id) === String(slotId));
+    if (!selectedSlot) {
+      setSessionForm((prev) => ({ ...prev, slot_id: slotId }));
+      return;
+    }
+
+    const sessionDate = sessionForm.session_date || new Date().toISOString().split("T")[0];
+    const startTime = selectedSlot.start_time || "09:00:00";
+    const endTime = selectedSlot.end_time || "10:00:00";
+
+    const sStart = `${sessionDate} ${startTime.length === 5 ? `${startTime}:00` : startTime}`;
+    const sEnd = `${sessionDate} ${endTime.length === 5 ? `${endTime}:00` : endTime}`;
+
+    const startDateObj = new Date(sStart.replace(" ", "T"));
+    let presentUntil = `${sessionDate} 09:15:00`;
+    let lateUntil = `${sessionDate} 09:30:00`;
+    if (!isNaN(startDateObj.getTime())) {
+      const pDate = new Date(startDateObj.getTime() + 15 * 60 * 1000);
+      const lDate = new Date(startDateObj.getTime() + 30 * 60 * 1000);
+      const formatTime = (d) =>
+        `${sessionDate} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+      presentUntil = formatTime(pDate);
+      lateUntil = formatTime(lDate);
+    }
+
+    setSessionForm((prev) => ({
+      ...prev,
+      slot_id: slotId,
+      faculty_id: selectedSlot.faculty_id || prev.faculty_id,
+      classroom_id: selectedSlot.classroom_id || prev.classroom_id,
+      scheduled_start: sStart,
+      scheduled_end: sEnd,
+      present_until: presentUntil,
+      late_until: lateUntil,
+    }));
+  };
+
+  const handleDateChange = (date) => {
+    setSessionForm((prev) => {
+      const startTime = prev.scheduled_start ? prev.scheduled_start.split(" ")[1] : "09:00:00";
+      const endTime = prev.scheduled_end ? prev.scheduled_end.split(" ")[1] : "10:00:00";
+      const presentTime = prev.present_until ? prev.present_until.split(" ")[1] : "09:15:00";
+      const lateTime = prev.late_until ? prev.late_until.split(" ")[1] : "09:30:00";
+      return {
+        ...prev,
+        session_date: date,
+        scheduled_start: `${date} ${startTime}`,
+        scheduled_end: `${date} ${endTime}`,
+        present_until: `${date} ${presentTime}`,
+        late_until: `${date} ${lateTime}`,
+      };
+    });
+  };
+
   const handleOpenCreate = () => {
     const today = new Date().toISOString().split("T")[0];
+    const initialSlot = timetableSlots[0];
+    const startTime = initialSlot?.start_time || "09:00:00";
+    const endTime = initialSlot?.end_time || "10:00:00";
+    const sStart = `${today} ${startTime.length === 5 ? `${startTime}:00` : startTime}`;
+    const sEnd = `${today} ${endTime.length === 5 ? `${endTime}:00` : endTime}`;
+
     setSessionForm({
-      slot_id: 1,
+      slot_id: initialSlot?.slot_id || "",
       session_date: today,
-      faculty_id: user?.facultyId || facultyList[0]?.faculty_id || 1,
-      classroom_id: classrooms[0]?.classroom_id || 1,
-      scheduled_start: `${today} 09:00:00`,
-      scheduled_end: `${today} 10:00:00`,
+      faculty_id: initialSlot?.faculty_id || user?.facultyId || facultyList[0]?.faculty_id || "",
+      classroom_id: initialSlot?.classroom_id || classrooms[0]?.classroom_id || "",
+      scheduled_start: sStart,
+      scheduled_end: sEnd,
       present_until: `${today} 09:15:00`,
       late_until: `${today} 09:30:00`,
     });
@@ -458,32 +523,45 @@ export function AttendanceSessionsView({ token, user, refreshTrigger = 0 }) {
         <form onSubmit={handleCreateSubmit} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Timetable Slot ID <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={sessionForm.slot_id}
-                onChange={(e) => setSessionForm({ ...sessionForm, slot_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Session Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={sessionForm.session_date}
-                onChange={(e) => setSessionForm({ ...sessionForm, session_date: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Timetable Slot <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
+              value={sessionForm.slot_id}
+              onChange={(e) => handleSlotSelect(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              <option value="">Select Scheduled Timetable Slot</option>
+              {timetableSlots.map((s) => {
+                const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                const dayLabel = dayNames[s.day_of_week] || `Day ${s.day_of_week}`;
+                const subject = s.subject_code ? `${s.subject_code}` : `Offering #${s.offering_id || s.section_id}`;
+                const section = s.section_code ? ` (Sec ${s.section_code})` : "";
+                const time = s.start_time ? ` | ${s.start_time.slice(0, 5)}-${s.end_time?.slice(0, 5)}` : "";
+                const room = s.room_no ? ` | Rm ${s.room_no}` : "";
+                const faculty = s.faculty_name ? ` | ${s.faculty_name}` : "";
+                return (
+                  <option key={s.slot_id} value={s.slot_id}>
+                    #{s.slot_id} — {subject}{section} [{dayLabel}{time}{room}{faculty}]
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Session Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              required
+              value={sessionForm.session_date}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

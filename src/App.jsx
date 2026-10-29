@@ -145,38 +145,34 @@ export function App() {
         profile.date_of_birth ||
         profile.dateOfBirth ||
         profile.dob ||
-        (authData.role === "ADMIN"
-          ? "1985-06-15"
-          : authData.role === "FACULTY"
-            ? "1980-08-22"
-            : "2004-05-10"),
+        null,
       bloodGroup:
         profile.blood_group ||
         profile.bloodGroup ||
-        (authData.role === "FACULTY" ? "B+" : "O+"),
+        null,
       // student
-      batch: profile.batch || profile.batch_label || "2026-30",
+      batch: profile.batch || profile.batch_label || null,
       programme:
         profile.programme_name ||
         profile.programme ||
-        "CSE (Artificial Intelligence & Machine Learning)",
-      section: profile.section_code || profile.section || "A",
-      degree_name: profile.degree_name || "Bachelor of Technology",
-      academic_year_label: profile.academic_year_label || "2026-27",
+        null,
+      section: profile.section_code || profile.section || null,
+      degree_name: profile.degree_name || null,
+      academic_year_label: profile.academic_year_label || null,
       // faculty and admin
       joiningYear:
         profile.joining_year ||
         profile.joiningYear ||
-        (authData.role === "ADMIN" ? 2020 : 2021),
+        null,
       designation:
         profile.designation ||
-        (authData.role === "FACULTY" ? "Professor" : null),
+        null,
       inChargeClass:
-        profile.in_charge_class || profile.inChargeClass || "CSE-AIML Sec A",
+        profile.in_charge_class || profile.inChargeClass || null,
       employeeId:
         profile.employee_id ||
         profile.employee_code ||
-        (authData.role === "ADMIN" ? "ADM001" : profile.username),
+        null,
     };
   }, []);
 
