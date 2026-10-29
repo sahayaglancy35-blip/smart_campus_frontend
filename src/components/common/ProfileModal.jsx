@@ -100,10 +100,13 @@ function formatBatch(user) {
     "batch_label",
   ]);
   if (direct) {
-    if (direct === "2026-30") return "2026 – 2030";
-    if (direct === "2023-27") return "2023 – 2027";
-    if (direct.includes("-") && !direct.includes("–")) return direct.replace("-", " – 20");
-    return direct;
+    const str = String(direct).trim();
+    const shortMatch = /^(\d{4})-(\d{2})$/.exec(str);
+    if (shortMatch) return `${shortMatch[1]} – 20${shortMatch[2]}`;
+    const fullMatch = /^(\d{4})-(\d{4})$/.exec(str);
+    if (fullMatch) return `${fullMatch[1]} – ${fullMatch[2]}`;
+    if (str.includes("-") && !str.includes("–")) return str.replace("-", " – ");
+    return str;
   }
   const start = pick(user, [
     "batch_start_year",
@@ -118,7 +121,7 @@ function formatBatch(user) {
     "graduation_year",
   ]);
   if (start && end) return `${start} – ${end}`;
-  return start ? String(start) : "2026 – 2030";
+  return start ? String(start) : null;
 }
 
 /* Raw gender from the API (genderLabel) so a missing value shows N/A */
@@ -149,7 +152,7 @@ function buildDetails(user) {
 
   if (role === "FACULTY") {
     return [
-      { label: "Name", value: name || "Dr. Rajesh Kumar", icon: UserIcon },
+      { label: "Name", value: name, icon: UserIcon },
       {
         label: "Faculty ID",
         value: pick(user, [
@@ -158,7 +161,7 @@ function buildDetails(user) {
           "employee_code",
           "employeeId",
           "registerNo",
-        ]) || "FAC001",
+        ]),
         icon: IdentificationIcon,
       },
       {
@@ -167,30 +170,30 @@ function buildDetails(user) {
           "inChargeClass",
           "in_charge_class",
           "class_in_charge",
-        ]) || "CSE-AIML Sec A",
+        ]),
         icon: UserGroupIcon,
       },
-      { label: "Joining Year", value: joiningYear || 2021, icon: CalendarDaysIcon },
+      { label: "Joining Year", value: joiningYear, icon: CalendarDaysIcon },
       {
         label: "Role",
-        value: pick(user, ["designation", "role_title", "position"]) || "Professor",
+        value: pick(user, ["designation", "role_title", "position"]),
         icon: BriefcaseIcon,
       },
-      { label: "Date of Birth", value: dob || formatDate("1980-08-22"), icon: CalendarDaysIcon },
+      { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
       {
         label: "Department",
-        value: pick(user, ["department", "department_name", "dept"]) || "Department of Computing & Information Systems",
+        value: pick(user, ["department", "department_name", "dept"]),
         icon: BuildingLibraryIcon,
       },
-      { label: "Gender", value: gender || "Male", icon: UsersIcon },
-      { label: "Email", value: email || "rajesh.kumar@joyuniversity.edu.in", icon: EnvelopeIcon },
-      { label: "Blood Group", value: bloodGroup || "B+", icon: DropletIcon },
+      { label: "Gender", value: gender, icon: UsersIcon },
+      { label: "Email", value: email, icon: EnvelopeIcon },
+      { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
     ];
   }
 
   if (role === "ADMIN") {
     return [
-      { label: "Name", value: name || "System Administrator", icon: UserIcon },
+      { label: "Name", value: name, icon: UserIcon },
       {
         label: "Employee ID",
         value: pick(user, [
@@ -199,26 +202,26 @@ function buildDetails(user) {
           "employee_code",
           "username",
           "registerNo",
-        ]) || "ADM001",
+        ]),
         icon: IdentificationIcon,
       },
-      { label: "Joining Year", value: joiningYear || 2020, icon: CalendarDaysIcon },
-      { label: "Date of Birth", value: dob || formatDate("1985-06-15"), icon: CalendarDaysIcon },
-      { label: "Gender", value: gender || "Male", icon: UsersIcon },
-      { label: "Email", value: email || "admin@joyuniversity.edu.in", icon: EnvelopeIcon },
-      { label: "Blood Group", value: bloodGroup || "O+", icon: DropletIcon },
+      { label: "Joining Year", value: joiningYear, icon: CalendarDaysIcon },
+      { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
+      { label: "Gender", value: gender, icon: UsersIcon },
+      { label: "Email", value: email, icon: EnvelopeIcon },
+      { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
     ];
   }
 
   // STUDENT
   return [
-    { label: "Name", value: name || "UPPARA VINOD", icon: UserIcon },
+    { label: "Name", value: name, icon: UserIcon },
     {
       label: "Register No",
-      value: pick(user, ["registerNo", "register_no", "reg_no"]) || "2023BTAM014",
+      value: pick(user, ["registerNo", "register_no", "reg_no"]),
       icon: IdentificationIcon,
     },
-    { label: "Batch", value: formatBatch(user) || "2026 – 2030", icon: CalendarDaysIcon },
+    { label: "Batch", value: formatBatch(user), icon: CalendarDaysIcon },
     {
       label: "Programme",
       value: pick(user, [
@@ -226,18 +229,18 @@ function buildDetails(user) {
         "program",
         "programme_name",
         "program_name",
-      ]) || "CSE (Artificial Intelligence & Machine Learning)",
+      ]),
       icon: AcademicCapIcon,
     },
     {
       label: "Section",
-      value: pick(user, ["section", "section_code", "section_name"]) || "A",
+      value: pick(user, ["section", "section_code", "section_name"]),
       icon: Squares2X2Icon,
     },
-    { label: "Date of Birth", value: dob || formatDate("2004-05-10"), icon: CalendarDaysIcon },
-    { label: "Gender", value: gender || "Male", icon: UsersIcon },
-    { label: "Email", value: email || "btam23014@joyuniversity.edu.in", icon: EnvelopeIcon },
-    { label: "Blood Group", value: bloodGroup || "O+", icon: DropletIcon },
+    { label: "Date of Birth", value: dob, icon: CalendarDaysIcon },
+    { label: "Gender", value: gender, icon: UsersIcon },
+    { label: "Email", value: email, icon: EnvelopeIcon },
+    { label: "Blood Group", value: bloodGroup, icon: DropletIcon },
   ];
 }
 
@@ -337,21 +340,20 @@ function ProfileModal({ isOpen, user, onClose }) {
 
   const startEdit = () => {
     setForm({
-      name: name || "System Administrator",
-      email: pick(user, ["email", "email_id", "emailId"]) || "admin@joyuniversity.edu.in",
+      name: name || "",
+      email: pick(user, ["email", "email_id", "emailId"]) || "",
       joiningYear: String(
         pick(user, [
           "joiningYear",
           "joining_year",
           "joined_year",
           "year_of_joining",
-        ]) ?? "2020",
+        ]) ?? "",
       ),
       dateOfBirth:
-        toDateInput(pick(user, ["dateOfBirth", "date_of_birth", "dob"])) ||
-        "1985-06-15",
-      gender: (rawGenderOf(user) || "male").toLowerCase(),
-      bloodGroup: pick(user, ["bloodGroup", "blood_group"]) || "O+",
+        toDateInput(pick(user, ["dateOfBirth", "date_of_birth", "dob"])) || "",
+      gender: (rawGenderOf(user) || "").toLowerCase(),
+      bloodGroup: pick(user, ["bloodGroup", "blood_group"]) || "",
     });
     setErrors({});
     setSaveError("");

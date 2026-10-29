@@ -29,6 +29,8 @@ import {
   createTimetableSlot,
   updateTimetableSlot,
   deleteTimetableSlot,
+  getAcademicYears,
+  getAcademicTerms,
 } from "../../api/academics";
 import { getDepartments, getFaculty, getClassrooms } from "../../api/admin";
 import DataTable from "../common/DataTable";
@@ -104,6 +106,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   const [programs, setPrograms] = useState([]);
   const [batches, setBatches] = useState([]);
   const [degrees, setDegrees] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
+  const [academicTerms, setAcademicTerms] = useState([]);
 
   // Academics Data States
   const [subjects, setSubjects] = useState([]);
@@ -134,7 +138,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   const [programForm, setProgramForm] = useState({
     school_id: "",
     department_id: "",
-    degree_id: 1,
+    degree_id: "",
     name: "",
     programme_code: "",
     partner_track: "STANDARD",
@@ -146,7 +150,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchForm, setBatchForm] = useState({
     programme_id: "",
-    start_year_id: 4,
+    start_year_id: "",
     label: "",
   });
 
@@ -157,6 +161,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     name: "",
     department_id: "",
     credits: 3,
+    delivery_type: "THEORY",
     course_category: "CORE",
     is_active: 1,
   });
@@ -165,7 +170,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   const [editingOffering, setEditingOffering] = useState(null);
   const [offeringForm, setOfferingForm] = useState({
     subject_id: "",
-    term_id: 1,
+    term_id: "",
     coordinator_faculty_id: "",
     is_active: 1,
   });
@@ -301,6 +306,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
           deptRes,
           facRes,
           roomRes,
+          yearsRes,
+          termsRes,
         ] = await Promise.all([
           getSchools(token, null, controller.signal).catch(() => ({ data: [] })),
           getPrograms(token, null, controller.signal).catch(() => ({ data: [] })),
@@ -313,6 +320,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
           getDepartments(token, controller.signal).catch(() => ({ data: [] })),
           getFaculty(token, controller.signal).catch(() => ({ data: [] })),
           getClassrooms(token, controller.signal).catch(() => ({ data: [] })),
+          getAcademicYears(token, controller.signal).catch(() => ({ data: [] })),
+          getAcademicTerms(token, controller.signal).catch(() => ({ data: [] })),
         ]);
 
         setSchools(Array.isArray(schoolsRes?.data) ? schoolsRes.data : []);
@@ -326,6 +335,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
         setDepartments(Array.isArray(deptRes?.data) ? deptRes.data : []);
         setFacultyList(Array.isArray(facRes?.data) ? facRes.data : []);
         setClassroomList(Array.isArray(roomRes?.data) ? roomRes.data : []);
+        setAcademicYears(Array.isArray(yearsRes?.data) ? yearsRes.data : []);
+        setAcademicTerms(Array.isArray(termsRes?.data) ? termsRes.data : []);
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Failed to load academics data.");
@@ -559,8 +570,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setEditingBatch(null);
     setBatchForm({
       programme_id: programs[0]?.programme_id || "",
-      start_year_id: 4,
-      label: "2026-30",
+      start_year_id: academicYears[0]?.year_id || "",
+      label: "",
     });
     setFormError("");
     setIsBatchModalOpen(true);
@@ -570,7 +581,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setEditingBatch(row);
     setBatchForm({
       programme_id: row.programme_id || "",
-      start_year_id: row.start_year_id || 4,
+      start_year_id: row.start_year_id || "",
       label: row.label || "",
     });
     setFormError("");
@@ -582,11 +593,15 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setFormError("");
     setSubmitting(true);
     try {
+      const payload = {
+        ...batchForm,
+        start_year_id: Number(batchForm.start_year_id),
+      };
       if (editingBatch) {
-        await updateBatch(token, editingBatch.batch_id, batchForm);
+        await updateBatch(token, editingBatch.batch_id, payload);
         setActionSuccess(`Batch "${batchForm.label}" updated successfully.`);
       } else {
-        await createBatch(token, batchForm);
+        await createBatch(token, payload);
         setActionSuccess(`Batch "${batchForm.label}" created successfully.`);
       }
       setIsBatchModalOpen(false);
@@ -629,6 +644,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       name: "",
       department_id: departments[0]?.department_id || "",
       credits: 3,
+      delivery_type: "THEORY",
       course_category: "CORE",
       is_active: 1,
     });
@@ -643,6 +659,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       name: row.name || "",
       department_id: row.department_id || row.owner_department_id || "",
       credits: row.credits || 3,
+      delivery_type: row.delivery_type || "THEORY",
       course_category: row.course_category || "CORE",
       is_active: row.is_active !== undefined ? row.is_active : 1,
     });
@@ -660,6 +677,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
         department_id: subjectForm.department_id ? Number(subjectForm.department_id) : null,
         owner_department_id: subjectForm.department_id ? Number(subjectForm.department_id) : null,
         credits: Number(subjectForm.credits) || 0,
+        delivery_type: subjectForm.delivery_type || "THEORY",
       };
       if (editingSubject) {
         await updateSubject(token, editingSubject.subject_id, payload);
@@ -706,7 +724,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setEditingOffering(null);
     setOfferingForm({
       subject_id: subjects[0]?.subject_id || "",
-      term_id: 1,
+      term_id: academicTerms[0]?.term_id || "",
       coordinator_faculty_id: facultyList[0]?.faculty_id || "",
       is_active: 1,
     });
@@ -718,7 +736,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setEditingOffering(row);
     setOfferingForm({
       subject_id: row.subject_id || "",
-      term_id: row.term_id || 1,
+      term_id: row.term_id || "",
       coordinator_faculty_id: row.coordinator_faculty_id || "",
       is_active: row.is_active ? 1 : 0,
     });
@@ -731,11 +749,20 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setFormError("");
     setSubmitting(true);
     try {
+      const payload = {
+        ...offeringForm,
+        subject_id: Number(offeringForm.subject_id),
+        term_id: Number(offeringForm.term_id),
+        coordinator_faculty_id: offeringForm.coordinator_faculty_id
+          ? Number(offeringForm.coordinator_faculty_id)
+          : null,
+        is_active: Number(offeringForm.is_active),
+      };
       if (editingOffering) {
-        await updateCourseOffering(token, editingOffering.offering_id, offeringForm);
+        await updateCourseOffering(token, editingOffering.offering_id, payload);
         setActionSuccess("Course offering updated successfully.");
       } else {
-        await createCourseOffering(token, offeringForm);
+        await createCourseOffering(token, payload);
         setActionSuccess("Course offering created successfully.");
       }
       setIsOfferingModalOpen(false);
@@ -1164,7 +1191,11 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     {
       header: "Start Academic Year",
       key: "start_year_label",
-      render: (row) => row.start_year_label || "—",
+      render: (row) =>
+        row.start_year_label ||
+        academicYears.find((ay) => ay.year_id === row.start_year_id)?.year_label ||
+        academicYears.find((ay) => ay.year_id === row.start_year_id)?.label ||
+        "—",
     },
     {
       header: "Sections & Students",
@@ -1218,8 +1249,10 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       render: (row) => (
         <div>
           <span className="font-bold text-gray-900">{row.name}</span>
-          <div className="text-xs text-gray-500 font-medium">
-            Category: {row.course_category || "CORE"}
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500 font-medium">
+            <span>Category: {row.course_category || "CORE"}</span>
+            <span>•</span>
+            <span className="font-semibold text-emerald-700">{row.delivery_type || "THEORY"}</span>
           </div>
         </div>
       ),
@@ -1289,12 +1322,17 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     {
       header: "Academic Term",
       key: "term",
-      render: (row) => (
-        <div>
-          <span className="font-semibold text-gray-800">{row.academic_year_label || "2026-27"}</span>
-          <span className="text-xs text-gray-500 ml-1">({row.term_type || "ODD"})</span>
-        </div>
-      ),
+      render: (row) => {
+        const term = academicTerms.find((t) => t.term_id === row.term_id);
+        const yearLabel = row.academic_year_label || term?.year_label || term?.label || `Term #${row.term_id}`;
+        const termType = row.term_type || term?.term_type || "";
+        return (
+          <div>
+            <span className="font-semibold text-gray-800">{yearLabel}</span>
+            {termType && <span className="text-xs text-gray-500 ml-1">({termType})</span>}
+          </div>
+        );
+      },
     },
     {
       header: "Coordinator Faculty",
@@ -2248,16 +2286,21 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
 
           <div>
             <label className="block text-xs font-semibold uppercase text-gray-700">
-              Start Academic Year ID <span className="text-red-500">*</span>
+              Start Academic Year <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              min="1"
+            <select
               required
               value={batchForm.start_year_id}
               onChange={(e) => setBatchForm({ ...batchForm, start_year_id: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-            />
+            >
+              <option value="">Select Academic Year</option>
+              {academicYears.map((ay) => (
+                <option key={ay.year_id} value={ay.year_id}>
+                  {ay.year_label || ay.label} {ay.is_current ? "(Current)" : ""}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -2361,6 +2404,21 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">Delivery Type</label>
+            <select
+              value={subjectForm.delivery_type}
+              onChange={(e) => setSubjectForm({ ...subjectForm, delivery_type: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
+            >
+              <option value="THEORY">THEORY</option>
+              <option value="LAB">LAB</option>
+              <option value="PROJECT">PROJECT</option>
+              <option value="INTERNSHIP">INTERNSHIP</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -2410,16 +2468,21 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
 
           <div>
             <label className="block text-xs font-semibold uppercase text-gray-700">
-              Academic Term ID <span className="text-red-500">*</span>
+              Academic Term <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              min="1"
+            <select
               required
               value={offeringForm.term_id}
               onChange={(e) => setOfferingForm({ ...offeringForm, term_id: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-            />
+            >
+              <option value="">Select Academic Term</option>
+              {academicTerms.map((term) => (
+                <option key={term.term_id} value={term.term_id}>
+                  {term.term_type} {term.year_label ? `(${term.year_label})` : ""} {term.is_current ? "— Current" : ""}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

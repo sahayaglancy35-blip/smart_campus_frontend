@@ -180,3 +180,13 @@ export async function updateAdminProfile(token, data) {
     body: data,
   });
 }
+
+// Academic Batches Reference
+export async function getBatches(token, signal) {
+  return apiClient("/batches", { token, signal });
+}
+
+// Designations Reference
+export async function getDesignations(token, signal) {
+  return apiClient("/designations", { token, signal });
+}

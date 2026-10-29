@@ -74,7 +74,7 @@ export function DepartmentManagementView({ token }) {
     setFormData({
       name: "",
       code: "",
-      school_id: schools[0]?.school_id || 1,
+      school_id: schools[0]?.school_id || "",
       is_active: 1,
     });
     setFormError("");
@@ -86,7 +86,7 @@ export function DepartmentManagementView({ token }) {
     setFormData({
       name: dept.name || "",
       code: dept.code || "",
-      school_id: dept.school_id || (schools[0]?.school_id || 1),
+      school_id: dept.school_id || schools[0]?.school_id || "",
       is_active: dept.is_active ? 1 : 0,
     });
     setFormError("");

@@ -8,6 +8,7 @@ import {
   createClassroom,
   updateClassroom,
   deleteClassroom,
+  getDepartments,
 } from "../../api/admin";
 import DataTable from "../common/DataTable";
 import Badge from "../common/Badge";
@@ -29,6 +30,7 @@ export function InfrastructureManagementView({ token }) {
   const [activeTab, setActiveTab] = useState("classrooms"); // "blocks" or "classrooms"
   const [blocks, setBlocks] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
@@ -48,7 +50,8 @@ export function InfrastructureManagementView({ token }) {
   // Forms
   const [blockForm, setBlockForm] = useState({ code: "", name: "", is_active: 1 });
   const [roomForm, setRoomForm] = useState({
-    block_id: 1,
+    block_id: "",
+    department_id: "",
     room_no: "",
     room_type: "CLASSROOM",
     capacity: 60,
@@ -64,13 +67,15 @@ export function InfrastructureManagementView({ token }) {
     async function loadData() {
       try {
         setError("");
-        const [blocksRes, roomsRes] = await Promise.all([
+        const [blocksRes, roomsRes, deptsRes] = await Promise.all([
           getBlocks(token, controller.signal),
           getClassrooms(token, controller.signal),
+          getDepartments(token, controller.signal),
         ]);
 
         setBlocks(Array.isArray(blocksRes?.data) ? blocksRes.data : []);
         setClassrooms(Array.isArray(roomsRes?.data) ? roomsRes.data : []);
+        setDepartments(Array.isArray(deptsRes?.data) ? deptsRes.data : []);
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Failed to load campus infrastructure.");
@@ -153,7 +158,8 @@ export function InfrastructureManagementView({ token }) {
   // Classroom handlers
   const handleOpenCreateRoom = () => {
     setRoomForm({
-      block_id: blocks[0]?.block_id || 1,
+      block_id: blocks[0]?.block_id || "",
+      department_id: "",
       room_no: "",
       room_type: "CLASSROOM",
       capacity: 60,
@@ -167,7 +173,8 @@ export function InfrastructureManagementView({ token }) {
   const handleOpenEditRoom = (room) => {
     setEditingRoom(room);
     setRoomForm({
-      block_id: room.block_id || blocks[0]?.block_id || 1,
+      block_id: room.block_id || blocks[0]?.block_id || "",
+      department_id: room.department_id || "",
       room_no: room.room_no || "",
       room_type: room.room_type || "CLASSROOM",
       capacity: room.capacity || 60,
@@ -190,6 +197,7 @@ export function InfrastructureManagementView({ token }) {
       const payload = {
         ...roomForm,
         block_id: Number(roomForm.block_id),
+        department_id: roomForm.department_id ? Number(roomForm.department_id) : null,
         capacity: Number(roomForm.capacity) || 60,
         is_active: Number(roomForm.is_active),
       };
@@ -293,6 +301,25 @@ export function InfrastructureManagementView({ token }) {
         return (
           <span className="font-semibold text-gray-900">
             {block ? `${block.name} (${block.code})` : `Block #${row.block_id}`}
+          </span>
+        );
+      },
+    },
+    {
+      header: "Department",
+      key: "department_id",
+      render: (row) => {
+        if (row.department_name) {
+          return (
+            <span className="font-semibold text-gray-800">
+              {row.department_name} ({row.department_code})
+            </span>
+          );
+        }
+        const dept = departments.find((d) => d.department_id === row.department_id);
+        return (
+          <span className="text-gray-500 text-xs">
+            {dept ? `${dept.name} (${dept.code})` : "General / Campus-wide"}
           </span>
         );
       },
@@ -515,6 +542,24 @@ export function InfrastructureManagementView({ token }) {
 
           <div>
             <label className="block text-xs font-semibold uppercase text-gray-700">
+              Department (Optional)
+            </label>
+            <select
+              value={roomForm.department_id}
+              onChange={(e) => setRoomForm({ ...roomForm, department_id: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              <option value="">General / Campus-Wide</option>
+              {departments.map((d) => (
+                <option key={d.department_id} value={d.department_id}>
+                  {d.name} ({d.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
               Room Number / Identifier <span className="text-red-500">*</span>
             </label>
             <input
@@ -556,6 +601,20 @@ export function InfrastructureManagementView({ token }) {
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase text-gray-700">
+              Status
+            </label>
+            <select
+              value={roomForm.is_active}
+              onChange={(e) => setRoomForm({ ...roomForm, is_active: Number(e.target.value) })}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            >
+              <option value={1}>Active</option>
+              <option value={0}>Inactive</option>
+            </select>
           </div>
 
           <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
