@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { fetchStudentAttendanceSummary } from "../../api/student";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
-import { deliveryStyleOf } from "../common/deliveryStyle";
-import { DeliveryLegend } from "../common/DeliveryLegend";
+import { deliveryStyleOf, DeliveryLegend } from "../common/deliveryStyle";
 import {
   ChartPieIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  SparklesIcon,
 } from "@heroicons/react/24/outline";
 
 /* ----------------------------------------------------------------
@@ -174,11 +172,9 @@ export function AttendanceSummaryView({ token }) {
     <div className="space-y-7">
       {/* ---------- Hero: dark gradient panel, glowing animated ring, inline stat pills ---------- */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-green-950 via-green-900 to-green-800 p-6 text-white shadow-xl shadow-green-900/20 sm:p-8">
-        {/* decorative glow blobs + faint concentric rings */}
+        {/* decorative background blobs */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-green-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="pointer-events-none absolute right-6 top-6 h-28 w-28 rounded-full border border-white/10" />
-        <div className="pointer-events-none absolute right-10 top-10 h-20 w-20 rounded-full border border-white/10" />
 
         <div className="relative flex flex-col items-center gap-7 sm:flex-row sm:items-center">
           {/* Donut ring with glow, animated fill + count-up number */}
@@ -186,7 +182,6 @@ export function AttendanceSummaryView({ token }) {
             className="relative flex h-[148px] w-[148px] shrink-0 items-center justify-center rounded-full transition-[background] duration-300"
             style={{
               background: `conic-gradient(${overallTone.ring} ${clampedOverall * 3.6}deg, rgba(255,255,255,0.12) 0deg)`,
-              boxShadow: `0 0 22px ${overallTone.ring}99, 0 0 48px ${overallTone.ring}55`,
             }}
           >
             <div className="flex h-[112px] w-[112px] flex-col items-center justify-center pt-3 rounded-full bg-green-950 ring-1 ring-white/10 shadow-[inset_0_0_18px_rgba(0,0,0,0.5)]">
@@ -200,9 +195,6 @@ export function AttendanceSummaryView({ token }) {
               </span>
               <span className="mt-1 text-[11px] text-green-200/70">overall</span>
             </div>
-            {overallStatus.tone === "emerald" && (
-              <SparklesIcon className="absolute -right-1 -top-1 h-7 w-7 text-emerald-300 drop-shadow" />
-            )}
           </div>
 
           {/* Summary + inline pills */}
