@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
+import { RouterProvider } from "./context/RouterProvider";
+import { useRouter } from "./context/useRouter";
 import LoginPage from "./components/LoginPage";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
+import AdminLoginPage from "./components/admin/AdminLoginPage";
+import AdminPortal from "./components/admin/AdminPortal";
+import AccessDeniedView from "./components/common/AccessDeniedView";
 import Dashboard from "./components/Dashboard";
 import LoadingSpinner from "./components/common/LoadingSpinner";
-import { loginUser, getAuthMe, logoutUser } from "./api/auth";
+import { loginUser, loginAdmin, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
 import { fetchFacultyProfile } from "./api/faculty";
 import * as adminApi from "./api/admin";
@@ -40,23 +45,26 @@ function getStoredUser() {
   }
 }
 
-export function App() {
+function AppContent() {
+  const { currentPath, navigate } = useRouter();
+
   const [token, setToken] = useState(getStoredToken);
   const [user, setUser] = useState(getStoredUser);
   const [isInitializing, setIsInitializing] = useState(() => {
     const savedToken = getStoredToken();
     const savedUser = getStoredUser();
-    // Only show full-screen loader if token exists but user profile has never been cached
     return Boolean(savedToken && !savedUser);
   });
-  const [view, setView] = useState(() => {
-    const savedToken = getStoredToken();
-    return savedToken ? "dashboard" : "login";
-  });
+
   const [loginError, setLoginError] = useState("");
+  const [adminLoginError, setAdminLoginError] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const isAdminRoute = currentPath === "/admin" || currentPath.startsWith("/admin/");
+  const isAdminLogin = currentPath === "/admin/login";
+  const isForgotPassword = currentPath === "/forgot-password";
 
   const buildUserProfile = useCallback(async (authData, authToken) => {
     let profile = authData;
@@ -200,7 +208,6 @@ export function App() {
 
         setToken(savedToken);
         setUser(userData);
-        setView("dashboard");
       } catch (err) {
         console.error("Session restoration error:", err);
 
@@ -219,8 +226,14 @@ export function App() {
           }
           setToken(null);
           setUser(null);
-          setLoginError("Your session has expired. Please log in again.");
-          setView("login");
+
+          if (window.location.pathname.startsWith("/admin")) {
+            setAdminLoginError("Your session has expired. Please log in again.");
+            navigate("/admin/login", { replace: true });
+          } else {
+            setLoginError("Your session has expired. Please log in again.");
+            navigate("/login", { replace: true });
+          }
         } else {
           setSessionError(
             "Unable to connect to the campus server. Please check your network and try again.",
@@ -230,7 +243,7 @@ export function App() {
         setIsInitializing(false);
       }
     },
-    [buildUserProfile],
+    [buildUserProfile, navigate],
   );
 
   useEffect(() => {
@@ -261,7 +274,6 @@ export function App() {
 
         setToken(savedToken);
         setUser(userData);
-        setView("dashboard");
         setIsInitializing(false);
       })
       .catch((err) => {
@@ -283,8 +295,14 @@ export function App() {
           }
           setToken(null);
           setUser(null);
-          setLoginError("Your session has expired. Please log in again.");
-          setView("login");
+
+          if (window.location.pathname.startsWith("/admin")) {
+            setAdminLoginError("Your session has expired. Please log in again.");
+            navigate("/admin/login", { replace: true });
+          } else {
+            setLoginError("Your session has expired. Please log in again.");
+            navigate("/login", { replace: true });
+          }
         } else {
           setSessionError(
             "Unable to connect to the campus server. Please check your network and try again.",
@@ -296,9 +314,35 @@ export function App() {
     return () => {
       mounted = false;
     };
-  }, [buildUserProfile]);
+  }, [buildUserProfile, navigate]);
 
-  const handleLogin = async ({ role, userId, password }) => {
+  // Route guarding and automatic redirection
+  useEffect(() => {
+    if (isInitializing || isLoggingOut) return;
+
+    if (!token || !user) {
+      // Unauthenticated visitor
+      if (isAdminRoute && !isAdminLogin) {
+        navigate("/admin/login", { replace: true });
+      } else if (!isAdminRoute && currentPath !== "/login" && currentPath !== "/forgot-password") {
+        navigate("/login", { replace: true });
+      }
+    } else {
+      // Authenticated user
+      if (user.role === "ADMIN") {
+        if (currentPath === "/login" || currentPath === "/admin/login" || currentPath === "/admin" || currentPath === "/" || currentPath === "/dashboard") {
+          navigate("/admin/dashboard", { replace: true });
+        }
+      } else {
+        // Non-admin (STUDENT, FACULTY, etc.)
+        if (currentPath === "/login" || currentPath === "/") {
+          navigate("/dashboard", { replace: true });
+        }
+      }
+    }
+  }, [token, user, currentPath, isAdminRoute, isAdminLogin, isInitializing, isLoggingOut, navigate]);
+
+  const handleGeneralLogin = async ({ role, userId, password }) => {
     setLoginError("");
     setSessionError("");
     setLoading(true);
@@ -310,13 +354,19 @@ export function App() {
         throw new Error(result.message || "Login failed");
       }
 
+      // Strict rejection of Administrator accounts from the general login portal
+      if (result.data.role === "ADMIN") {
+        throw new Error(
+          "Administrator accounts cannot sign in through this portal. Please use the dedicated Administrator Portal at /admin/login."
+        );
+      }
+
       const expectedRole = ROLE_MAP[role] || role;
 
       if (result.data.role !== expectedRole) {
         throw new Error("Please select the correct role for this account.");
       }
 
-      // Persist token across browser refreshes
       try {
         localStorage.setItem(TOKEN_KEY, result.token);
         localStorage.setItem(LEGACY_TOKEN_KEY, result.token);
@@ -334,7 +384,7 @@ export function App() {
 
       setToken(result.token);
       setUser(userData);
-      setView("dashboard");
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       setLoginError(error.message || "Login failed");
     } finally {
@@ -342,7 +392,50 @@ export function App() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleAdminLogin = async ({ username, password }) => {
+    setAdminLoginError("");
+    setSessionError("");
+    setLoading(true);
+
+    try {
+      const result = await loginAdmin(username, password);
+
+      if (!result.success) {
+        throw new Error(result.message || "Administrator authentication failed");
+      }
+
+      if (result.data.role !== "ADMIN") {
+        throw new Error(
+          "Access restricted: only administrators may log in through the Administrator Portal."
+        );
+      }
+
+      try {
+        localStorage.setItem(TOKEN_KEY, result.token);
+        localStorage.setItem(LEGACY_TOKEN_KEY, result.token);
+      } catch (storageErr) {
+        console.warn("Storage write failed:", storageErr);
+      }
+
+      const userData = await buildUserProfile(result.data, result.token);
+
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(userData));
+      } catch (storageErr) {
+        console.warn("User storage write failed:", storageErr);
+      }
+
+      setToken(result.token);
+      setUser(userData);
+      navigate("/admin/dashboard", { replace: true });
+    } catch (error) {
+      setAdminLoginError(error.message || "Administrator authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGeneralLogout = async () => {
     setIsLoggingOut(true);
     const currentToken = token || getStoredToken();
     if (currentToken) {
@@ -368,10 +461,38 @@ export function App() {
     setLoginError("");
     setSessionError("");
     setIsLoggingOut(false);
-    setView("login");
+    navigate("/login", { replace: true });
   };
 
-  // Admin-only: save edits made in the profile popup
+  const handleAdminLogout = async () => {
+    setIsLoggingOut(true);
+    const currentToken = token || getStoredToken();
+    if (currentToken) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        await logoutUser(currentToken, controller.signal);
+        clearTimeout(timeoutId);
+      } catch (err) {
+        console.warn("Server-side admin logout notice:", err.message);
+      }
+    }
+
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+    setUser(null);
+    setToken(null);
+    setAdminLoginError("");
+    setSessionError("");
+    setIsLoggingOut(false);
+    navigate("/admin/login", { replace: true });
+  };
+
   const handleProfileUpdate = useCallback(
     async (values) => {
       const currentToken = token || getStoredToken();
@@ -421,7 +542,11 @@ export function App() {
     if (savedToken) {
       restoreSession(savedToken);
     } else {
-      setView("login");
+      if (window.location.pathname.startsWith("/admin")) {
+        navigate("/admin/login", { replace: true });
+      } else {
+        navigate("/login", { replace: true });
+      }
     }
   };
 
@@ -430,7 +555,7 @@ export function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-900 text-white font-bold text-xl">
             JU
           </div>
           <h2 className="text-base font-bold text-gray-900 mb-1">
@@ -450,7 +575,7 @@ export function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-900 text-white font-bold text-xl">
             JU
           </div>
           <h2 className="text-base font-bold text-gray-900 mb-1">
@@ -466,7 +591,7 @@ export function App() {
   }
 
   // 2. Network / server failure screen with retry
-  if (sessionError && view !== "login") {
+  if (sessionError && currentPath !== "/login" && !isAdminLogin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg border border-red-100">
@@ -494,13 +619,13 @@ export function App() {
             <button
               type="button"
               onClick={handleRetrySession}
-              className="w-full rounded-xl bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
+              className="w-full rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-emerald-900 transition"
             >
               Retry Connection
             </button>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={isAdminRoute ? handleAdminLogout : handleGeneralLogout}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
             >
               Sign In to Another Account
@@ -511,13 +636,28 @@ export function App() {
     );
   }
 
-  // 3. Login view
-  if (view === "login") {
+  // 3. Unauthenticated views
+  if (!token || !user) {
+    if (isAdminLogin) {
+      return (
+        <AdminLoginPage
+          onLogin={handleAdminLogin}
+          loading={loading}
+          error={adminLoginError}
+        />
+      );
+    }
+
+    if (isForgotPassword) {
+      return <ForgotPasswordPage onBack={() => navigate("/login")} />;
+    }
+
+    // Default unauthenticated view: Main Login (/login)
     return (
       <>
         <LoginPage
-          onLogin={handleLogin}
-          onForgotPassword={() => setView("forgot")}
+          onLogin={handleGeneralLogin}
+          onForgotPassword={() => navigate("/forgot-password")}
           loading={loading}
         />
 
@@ -533,18 +673,46 @@ export function App() {
     );
   }
 
-  // 4. Forgot password view
-  if (view === "forgot") {
-    return <ForgotPasswordPage onBack={() => setView("login")} />;
+  // 4. Authenticated views
+  // Non-admin attempting to access admin route: 403 Forbidden
+  if (user.role !== "ADMIN" && isAdminRoute) {
+    return (
+      <AccessDeniedView
+        user={user}
+        onNavigateToPortal={() => navigate("/dashboard")}
+        onLogout={handleGeneralLogout}
+      />
+    );
   }
 
-  // 5. Authenticated ERP Dashboard
+  // Admin user: Dedicated Admin Portal
+  if (user.role === "ADMIN") {
+    return (
+      <ProfileUpdateContext.Provider value={handleProfileUpdate}>
+        <AdminPortal
+          user={user}
+          token={token}
+          currentPath={currentPath}
+          onNavigate={(path) => navigate(path)}
+          onLogout={handleAdminLogout}
+        />
+      </ProfileUpdateContext.Provider>
+    );
+  }
+
+  // Student / Faculty users: Existing Student & Faculty Portals
   return (
-    <ProfileUpdateContext.Provider
-      value={user?.role === "ADMIN" ? handleProfileUpdate : null}
-    >
-      <Dashboard user={user} token={token} onLogout={handleLogout} />
+    <ProfileUpdateContext.Provider value={null}>
+      <Dashboard user={user} token={token} onLogout={handleGeneralLogout} />
     </ProfileUpdateContext.Provider>
+  );
+}
+
+export function App() {
+  return (
+    <RouterProvider>
+      <AppContent />
+    </RouterProvider>
   );
 }
 
