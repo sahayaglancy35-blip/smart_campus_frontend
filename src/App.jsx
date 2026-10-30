@@ -6,6 +6,7 @@ import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import AdminLoginPage from "./components/admin/AdminLoginPage";
 import AdminPortal from "./components/admin/AdminPortal";
 import AccessDeniedView from "./components/common/AccessDeniedView";
+import NotFoundPage from "./components/common/NotFoundPage";
 import Dashboard from "./components/Dashboard";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import { loginUser, loginAdmin, getAuthMe, logoutUser } from "./api/auth";
@@ -23,6 +24,17 @@ const ROLE_MAP = {
 const TOKEN_KEY = "smart_campus_jwt";
 const LEGACY_TOKEN_KEY = "token";
 const USER_KEY = "smart_campus_user";
+
+const VALID_ADMIN_MODULE_ROUTES = [
+  "/admin",
+  "/admin/dashboard",
+  "/admin/students",
+  "/admin/faculty",
+  "/admin/departments",
+  "/admin/classrooms",
+  "/admin/academics",
+  "/admin/attendance",
+];
 
 function getStoredToken() {
   try {
@@ -65,6 +77,7 @@ function AppContent() {
   const isAdminRoute = currentPath === "/admin" || currentPath.startsWith("/admin/");
   const isAdminLogin = currentPath === "/admin/login";
   const isForgotPassword = currentPath === "/forgot-password";
+  const isGeneralLogin = currentPath === "/login" || currentPath === "/";
 
   const buildUserProfile = useCallback(async (authData, authToken) => {
     let profile = authData;
@@ -316,16 +329,14 @@ function AppContent() {
     };
   }, [buildUserProfile, navigate]);
 
-  // Route guarding and automatic redirection
+  // Route guarding and automatic redirection for authenticated users visiting login
   useEffect(() => {
     if (isInitializing || isLoggingOut) return;
 
     if (!token || !user) {
-      // Unauthenticated visitor
-      if (isAdminRoute && !isAdminLogin) {
+      // Unauthenticated visitor attempting to access valid admin module -> redirect to admin login
+      if (isAdminRoute && !isAdminLogin && VALID_ADMIN_MODULE_ROUTES.includes(currentPath)) {
         navigate("/admin/login", { replace: true });
-      } else if (!isAdminRoute && currentPath !== "/login" && currentPath !== "/forgot-password") {
-        navigate("/login", { replace: true });
       }
     } else {
       // Authenticated user
@@ -354,10 +365,10 @@ function AppContent() {
         throw new Error(result.message || "Login failed");
       }
 
-      // Strict rejection of Administrator accounts from the general login portal
+      // Strict rejection of Administrator accounts without revealing the secret admin URL
       if (result.data.role === "ADMIN") {
         throw new Error(
-          "Administrator accounts cannot sign in through this portal. Please use the dedicated Administrator Portal at /admin/login."
+          "Access denied: this account does not have student or staff privileges for this portal."
         );
       }
 
@@ -499,7 +510,7 @@ function AppContent() {
 
       if (typeof adminApi.updateAdminProfile !== "function") {
         throw new Error(
-          "Profile editing is not available yet: the updateAdminProfile API function is missing.",
+          "Profile editing is not available: the updateAdminProfile API function is missing.",
         );
       }
 
@@ -519,6 +530,7 @@ function AppContent() {
       const updatedUser = {
         ...user,
         name: values.name,
+        full_name: values.name,
         email: values.email,
         joiningYear: values.joiningYear,
         dateOfBirth: values.dateOfBirth,
@@ -555,7 +567,7 @@ function AppContent() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-900 text-white font-bold text-xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
             JU
           </div>
           <h2 className="text-base font-bold text-gray-900 mb-1">
@@ -575,7 +587,7 @@ function AppContent() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg border border-gray-100">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-900 text-white font-bold text-xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-900 text-white font-bold text-xl">
             JU
           </div>
           <h2 className="text-base font-bold text-gray-900 mb-1">
@@ -619,7 +631,7 @@ function AppContent() {
             <button
               type="button"
               onClick={handleRetrySession}
-              className="w-full rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-emerald-900 transition"
+              className="w-full rounded-xl bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition"
             >
               Retry Connection
             </button>
@@ -652,29 +664,38 @@ function AppContent() {
       return <ForgotPasswordPage onBack={() => navigate("/login")} />;
     }
 
-    // Default unauthenticated view: Main Login (/login)
-    return (
-      <>
-        <LoginPage
-          onLogin={handleGeneralLogin}
-          onForgotPassword={() => navigate("/forgot-password")}
-          loading={loading}
-        />
+    if (isGeneralLogin) {
+      return (
+        <>
+          <LoginPage
+            onLogin={handleGeneralLogin}
+            onForgotPassword={() => navigate("/forgot-password")}
+            loading={loading}
+          />
 
-        {loginError && (
-          <div
-            role="alert"
-            className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-xl"
-          >
-            {loginError}
-          </div>
-        )}
-      </>
+          {loginError && (
+            <div
+              role="alert"
+              className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-xl"
+            >
+              {loginError}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Unauthenticated user attempting any unrecognized or wrong route -> 404 error page
+    return (
+      <NotFoundPage
+        user={null}
+        currentPath={currentPath}
+        onNavigate={(to) => navigate(to)}
+      />
     );
   }
 
-  // 4. Authenticated views
-  // Non-admin attempting to access admin route: 403 Forbidden
+  // 4. Authenticated non-admin attempting to access any admin route -> Strict 403 Forbidden
   if (user.role !== "ADMIN" && isAdminRoute) {
     return (
       <AccessDeniedView
@@ -685,26 +706,48 @@ function AppContent() {
     );
   }
 
-  // Admin user: Dedicated Admin Portal
+  // 5. Authenticated Admin user
   if (user.role === "ADMIN") {
+    if (VALID_ADMIN_MODULE_ROUTES.includes(currentPath)) {
+      return (
+        <ProfileUpdateContext.Provider value={handleProfileUpdate}>
+          <AdminPortal
+            user={user}
+            token={token}
+            currentPath={currentPath}
+            onNavigate={(path) => navigate(path)}
+            onLogout={handleAdminLogout}
+          />
+        </ProfileUpdateContext.Provider>
+      );
+    }
+
+    // Wrong route entered while logged in as Admin -> 404 error page
     return (
-      <ProfileUpdateContext.Provider value={handleProfileUpdate}>
-        <AdminPortal
-          user={user}
-          token={token}
-          currentPath={currentPath}
-          onNavigate={(path) => navigate(path)}
-          onLogout={handleAdminLogout}
-        />
+      <NotFoundPage
+        user={user}
+        currentPath={currentPath}
+        onNavigate={(to) => navigate(to)}
+      />
+    );
+  }
+
+  // 6. Authenticated Student / Faculty user
+  if (currentPath === "/dashboard" || currentPath === "/") {
+    return (
+      <ProfileUpdateContext.Provider value={null}>
+        <Dashboard user={user} token={token} onLogout={handleGeneralLogout} />
       </ProfileUpdateContext.Provider>
     );
   }
 
-  // Student / Faculty users: Existing Student & Faculty Portals
+  // Wrong route entered while logged in as Student/Faculty -> 404 error page
   return (
-    <ProfileUpdateContext.Provider value={null}>
-      <Dashboard user={user} token={token} onLogout={handleGeneralLogout} />
-    </ProfileUpdateContext.Provider>
+    <NotFoundPage
+      user={user}
+      currentPath={currentPath}
+      onNavigate={(to) => navigate(to)}
+    />
   );
 }
 

@@ -1,9 +1,9 @@
+import { useState } from "react";
 import {
   Bars3Icon,
   ArrowPathIcon,
-  ArrowRightOnRectangleIcon,
-  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
+import ProfileModal from "../../common/ProfileModal";
 
 export function AdminHeader({
   user,
@@ -11,16 +11,17 @@ export function AdminHeader({
   subtitle,
   onOpenMobileMenu,
   onRefresh,
-  onLogoutClick,
 }) {
+  const [showProfile, setShowProfile] = useState(false);
+
   return (
-    <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-4 sm:px-8 backdrop-blur-md">
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-xs sm:px-6 lg:px-8">
       {/* Left: Mobile hamburger & Page Title */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
           aria-label="Open navigation menu"
         >
           <Bars3Icon className="h-6 w-6" />
@@ -28,57 +29,63 @@ export function AdminHeader({
 
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-green-950">
               {title}
             </h1>
-            <span className="hidden sm:inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-600/20">
+            <span className="hidden sm:inline-flex items-center rounded bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800">
               Admin Console
             </span>
           </div>
           {subtitle && (
-            <p className="hidden text-xs text-slate-500 sm:block mt-0.5">
+            <p className="hidden text-xs text-gray-500 sm:block">
               {subtitle}
             </p>
           )}
         </div>
       </div>
 
-      {/* Right Actions */}
-      <div className="flex items-center gap-3">
+      {/* Right Actions: Refresh, User display, and Clickable Avatar opening ProfileModal */}
+      <div className="flex items-center gap-4">
         {onRefresh && (
           <button
             type="button"
             onClick={onRefresh}
+            aria-label="Refresh administrative data"
             title="Refresh administrative data"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-xs transition hover:bg-slate-50 hover:text-slate-900"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-xs transition hover:bg-gray-50 hover:text-green-800"
           >
             <ArrowPathIcon className="h-5 w-5" />
           </button>
         )}
 
         {/* User Info Chip */}
-        <div className="hidden md:flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 py-1.5 px-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs ring-1 ring-emerald-600/30">
-            <ShieldCheckIcon className="h-5 w-5" />
-          </div>
-          <div className="text-left text-xs">
-            <p className="font-semibold text-slate-900 line-clamp-1">
-              {user?.name || user?.username || "Admin"}
+        <div className="flex items-center gap-3">
+          <div className="hidden text-right sm:block">
+            <p className="text-sm font-semibold leading-tight text-gray-900">
+              {user?.name || user?.username || "Administrator"}
             </p>
-            <p className="text-[11px] text-emerald-700 font-medium">ADMINISTRATOR</p>
+            <p className="text-xs font-medium text-green-700">Administrator</p>
           </div>
-        </div>
 
-        {/* Sign Out Button */}
-        <button
-          type="button"
-          onClick={onLogoutClick}
-          className="flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 active:bg-rose-200"
-        >
-          <ArrowRightOnRectangleIcon className="h-4 w-4 shrink-0" />
-          <span className="hidden sm:inline">Sign Out</span>
-        </button>
+          {/* Clickable Avatar Opening ProfileModal */}
+          <button
+            type="button"
+            onClick={() => setShowProfile(true)}
+            aria-label="View and edit administrator profile"
+            title="View and edit administrator profile"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 ring-2 ring-green-600/20 transition hover:scale-105 hover:ring-green-600/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+          >
+            {user?.name ? user.name.charAt(0).toUpperCase() : "A"}
+          </button>
+        </div>
       </div>
+
+      {/* Embedded Profile Modal for Admin Profile Viewing and Editing */}
+      <ProfileModal
+        isOpen={showProfile}
+        user={user}
+        onClose={() => setShowProfile(false)}
+      />
     </header>
   );
 }

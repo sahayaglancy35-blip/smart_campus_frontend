@@ -4,3 +4,4 @@ export const RouterContext = createContext({
   currentPath: "/",
   navigate: () => {},
 });
+

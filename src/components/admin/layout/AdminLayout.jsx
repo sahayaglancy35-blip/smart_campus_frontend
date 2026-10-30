@@ -17,8 +17,8 @@ export function AdminLayout({
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-slate-100 font-sans antialiased text-slate-800">
-      {/* Sidebar */}
+    <div className="flex min-h-screen bg-slate-50 font-sans antialiased text-gray-800">
+      {/* Sidebar with single logout at bottom left */}
       <AdminSidebar
         user={user}
         currentPath={currentPath}
@@ -36,7 +36,6 @@ export function AdminLayout({
           subtitle={subtitle}
           onOpenMobileMenu={() => setMobileOpen(true)}
           onRefresh={onRefresh}
-          onLogoutClick={() => setLogoutModalOpen(true)}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">

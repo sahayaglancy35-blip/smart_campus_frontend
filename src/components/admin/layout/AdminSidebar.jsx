@@ -72,100 +72,115 @@ export function AdminSidebar({
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col justify-between bg-slate-900 border-r border-slate-800 text-slate-100 p-5 overflow-y-auto">
+    <div className="flex h-full flex-col justify-between overflow-y-auto bg-green-950 p-5 text-white">
       <div>
-        {/* Branding */}
-        <div className="flex items-center justify-between pb-6 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold text-lg shadow-md shadow-emerald-950/60 ring-1 ring-emerald-400/30">
-              JU
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-base tracking-tight text-white">Joy University</span>
-                <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-800/80">
-                  ADMIN
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">Smart Campus ERP Control</p>
-            </div>
-          </div>
-
-          {onCloseMobile && (
-            <button
-              type="button"
-              onClick={onCloseMobile}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
-              aria-label="Close menu"
-            >
-              <XMarkIcon className="h-6 w-6" />
-            </button>
-          )}
+        {/* Mobile close header */}
+        <div className="flex items-center justify-between pb-3 lg:hidden">
+          <span className="text-sm font-bold text-green-300">Admin Navigation</span>
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="rounded-lg p-1 text-green-300 hover:bg-green-900"
+            aria-label="Close menu"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
         </div>
 
-        {/* User Card */}
-        <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/50 p-3.5 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-950 text-emerald-400 ring-1 ring-emerald-600/40">
-            <ShieldCheckIcon className="h-6 w-6" />
+        {/* Branding */}
+        <div className="flex items-center gap-3 pb-5 border-b border-green-900/60">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-800 text-white font-bold text-lg shadow-xs ring-1 ring-white/10">
+            JU
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">
-              {user?.name || user?.username || "Administrator"}
-            </p>
-            <p className="text-xs text-emerald-400 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-              System Administrator
-            </p>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-base tracking-tight text-white">Joy University</span>
+              <span className="rounded bg-green-800/90 px-1.5 py-0.5 text-[10px] font-semibold text-green-200">
+                ERP
+              </span>
+            </div>
+            <p className="text-xs text-green-300/80">Administrator Console</p>
           </div>
+        </div>
+
+        {/* Profile Card */}
+        <div className="mt-5 flex flex-col items-center rounded-2xl bg-green-900/60 p-4 text-center ring-1 ring-white/10 shadow-inner">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-800 ring-4 ring-green-600/30 font-bold text-xl shadow-sm">
+            {user?.name ? user.name.charAt(0).toUpperCase() : "A"}
+          </div>
+          <h3 className="mt-3 text-base font-bold text-white tracking-tight line-clamp-1">
+            {user?.name || user?.username || "Administrator"}
+          </h3>
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-green-800/80 px-2.5 py-0.5 text-xs font-semibold text-green-200">
+            <ShieldCheckIcon className="h-3.5 w-3.5 text-green-300" />
+            ADMINISTRATOR
+          </span>
+
+          <dl className="mt-3 w-full border-t border-green-800/60 pt-2.5 text-left text-xs space-y-1.5">
+            <div className="flex justify-between gap-2">
+              <dt className="text-green-300/80 font-medium">User ID:</dt>
+              <dd className="font-semibold text-green-50 truncate">
+                {user?.username || user?.registerNo || "admin"}
+              </dd>
+            </div>
+            {user?.email && (
+              <div className="flex justify-between gap-2">
+                <dt className="text-green-300/80 font-medium">Email:</dt>
+                <dd className="font-semibold text-green-50 truncate max-w-[140px]">
+                  {user.email}
+                </dd>
+              </div>
+            )}
+          </dl>
         </div>
 
         {/* Navigation Section */}
-        <nav className="mt-6 space-y-1.5" aria-label="Administrator Navigation">
-          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Management Modules
+        <div className="mt-6">
+          <p className="px-2 text-xs font-semibold uppercase tracking-wider text-green-400/80">
+            Administrative Modules
           </p>
 
-          {ADMIN_NAV_ITEMS.map((item) => {
-            const active = isItemActive(item.route);
-            const Icon = item.icon;
+          <nav className="mt-2.5 space-y-1" aria-label="Administrator Navigation">
+            {ADMIN_NAV_ITEMS.map((item) => {
+              const active = isItemActive(item.route);
+              const Icon = item.icon;
 
-            return (
-              <button
-                key={item.route}
-                type="button"
-                onClick={() => {
-                  onNavigate(item.route);
-                  if (onCloseMobile) onCloseMobile();
-                }}
-                className={`group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition ${
-                  active
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/50"
-                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
-                }`}
-              >
-                <Icon
-                  className={`h-5 w-5 shrink-0 transition ${
-                    active ? "text-white" : "text-slate-400 group-hover:text-slate-200"
+              return (
+                <button
+                  key={item.route}
+                  type="button"
+                  onClick={() => {
+                    onNavigate(item.route);
+                    if (onCloseMobile) onCloseMobile();
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition ${
+                    active
+                      ? "bg-green-700 text-white shadow-xs font-semibold ring-1 ring-green-500/50"
+                      : "text-green-100 hover:bg-green-900 hover:text-white"
                   }`}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="truncate font-semibold">{item.label}</div>
-                </div>
-              </button>
-            );
-          })}
-        </nav>
+                >
+                  <Icon
+                    className={`h-5 w-5 shrink-0 transition ${
+                      active ? "text-white" : "text-green-300"
+                    }`}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </div>
 
-      {/* Logout Action */}
-      <div className="pt-6 border-t border-slate-800 mt-6">
+      {/* Single Logout Action at Bottom Left */}
+      <div className="border-t border-green-900/60 pt-4 mt-6">
         <button
           type="button"
           onClick={onLogoutClick}
-          className="flex w-full items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-3.5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-rose-900/50 hover:bg-rose-950/30 hover:text-rose-400"
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-green-200/80 transition hover:bg-green-900/40 hover:text-white"
         >
-          <ArrowRightOnRectangleIcon className="h-5 w-5 text-slate-400" />
-          <span>Sign Out Admin</span>
+          <ArrowRightOnRectangleIcon className="h-5 w-5 shrink-0" />
+          <span>Sign Out</span>
         </button>
       </div>
     </div>
@@ -182,7 +197,7 @@ export function AdminSidebar({
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
           <div
-            className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
           />
           <div className="relative flex h-full w-80 max-w-[85vw] flex-col shadow-2xl">
