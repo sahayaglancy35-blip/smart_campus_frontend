@@ -17,7 +17,7 @@ import ProfileModal from "../common/ProfileModal";
                      reloads the page
    Clicking the avatar circle opens the profile popup.
 ================================================================= */
-export function Header({ user, onToggleSidebar, activeTitle, pageTitle, onRefresh }) {
+export function Header({ user, onToggleSidebar, onRefresh }) {
   const [showProfile, setShowProfile] = useState(false);
 
   const roleDisplay = {
@@ -27,7 +27,6 @@ export function Header({ user, onToggleSidebar, activeTitle, pageTitle, onRefres
   };
 
   const role = user?.role || "STUDENT";
-  const title = activeTitle || pageTitle;
 
   const handleRefresh = () => {
     if (onRefresh) {

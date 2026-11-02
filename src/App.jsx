@@ -1,9 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
+import { RouterProvider } from "./context/RouterProvider";
+import { useRouter } from "./context/useRouter";
 import LoginPage from "./components/LoginPage";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
+import AdminLoginPage from "./components/admin/AdminLoginPage";
+import AdminPortal from "./components/admin/AdminPortal";
+import AccessDeniedView from "./components/common/AccessDeniedView";
+import NotFoundPage from "./components/common/NotFoundPage";
 import Dashboard from "./components/Dashboard";
 import LoadingSpinner from "./components/common/LoadingSpinner";
-import { loginUser, getAuthMe, logoutUser } from "./api/auth";
+import { loginUser, loginAdmin, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
 import { fetchFacultyProfile } from "./api/faculty";
 import * as adminApi from "./api/admin";
@@ -18,6 +24,17 @@ const ROLE_MAP = {
 const TOKEN_KEY = "smart_campus_jwt";
 const LEGACY_TOKEN_KEY = "token";
 const USER_KEY = "smart_campus_user";
+
+const VALID_ADMIN_MODULE_ROUTES = [
+  "/admin",
+  "/admin/dashboard",
+  "/admin/students",
+  "/admin/faculty",
+  "/admin/departments",
+  "/admin/classrooms",
+  "/admin/academics",
+  "/admin/attendance",
+];
 
 function getStoredToken() {
   try {
@@ -40,23 +57,27 @@ function getStoredUser() {
   }
 }
 
-export function App() {
+function AppContent() {
+  const { currentPath, navigate } = useRouter();
+
   const [token, setToken] = useState(getStoredToken);
   const [user, setUser] = useState(getStoredUser);
   const [isInitializing, setIsInitializing] = useState(() => {
     const savedToken = getStoredToken();
     const savedUser = getStoredUser();
-    // Only show full-screen loader if token exists but user profile has never been cached
     return Boolean(savedToken && !savedUser);
   });
-  const [view, setView] = useState(() => {
-    const savedToken = getStoredToken();
-    return savedToken ? "dashboard" : "login";
-  });
+
   const [loginError, setLoginError] = useState("");
+  const [adminLoginError, setAdminLoginError] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const isAdminRoute = currentPath === "/admin" || currentPath.startsWith("/admin/");
+  const isAdminLogin = currentPath === "/admin/login";
+  const isForgotPassword = currentPath === "/forgot-password";
+  const isGeneralLogin = currentPath === "/login" || currentPath === "/";
 
   const buildUserProfile = useCallback(async (authData, authToken) => {
     let profile = authData;
@@ -200,7 +221,6 @@ export function App() {
 
         setToken(savedToken);
         setUser(userData);
-        setView("dashboard");
       } catch (err) {
         console.error("Session restoration error:", err);
 
@@ -219,8 +239,14 @@ export function App() {
           }
           setToken(null);
           setUser(null);
-          setLoginError("Your session has expired. Please log in again.");
-          setView("login");
+
+          if (window.location.pathname.startsWith("/admin")) {
+            setAdminLoginError("Your session has expired. Please log in again.");
+            navigate("/admin/login", { replace: true });
+          } else {
+            setLoginError("Your session has expired. Please log in again.");
+            navigate("/login", { replace: true });
+          }
         } else {
           setSessionError(
             "Unable to connect to the campus server. Please check your network and try again.",
@@ -230,7 +256,7 @@ export function App() {
         setIsInitializing(false);
       }
     },
-    [buildUserProfile],
+    [buildUserProfile, navigate],
   );
 
   useEffect(() => {
@@ -261,7 +287,6 @@ export function App() {
 
         setToken(savedToken);
         setUser(userData);
-        setView("dashboard");
         setIsInitializing(false);
       })
       .catch((err) => {
@@ -283,8 +308,14 @@ export function App() {
           }
           setToken(null);
           setUser(null);
-          setLoginError("Your session has expired. Please log in again.");
-          setView("login");
+
+          if (window.location.pathname.startsWith("/admin")) {
+            setAdminLoginError("Your session has expired. Please log in again.");
+            navigate("/admin/login", { replace: true });
+          } else {
+            setLoginError("Your session has expired. Please log in again.");
+            navigate("/login", { replace: true });
+          }
         } else {
           setSessionError(
             "Unable to connect to the campus server. Please check your network and try again.",
@@ -296,9 +327,33 @@ export function App() {
     return () => {
       mounted = false;
     };
-  }, [buildUserProfile]);
+  }, [buildUserProfile, navigate]);
 
-  const handleLogin = async ({ role, userId, password }) => {
+  // Route guarding and automatic redirection for authenticated users visiting login
+  useEffect(() => {
+    if (isInitializing || isLoggingOut) return;
+
+    if (!token || !user) {
+      // Unauthenticated visitor attempting to access valid admin module -> redirect to admin login
+      if (isAdminRoute && !isAdminLogin && VALID_ADMIN_MODULE_ROUTES.includes(currentPath)) {
+        navigate("/admin/login", { replace: true });
+      }
+    } else {
+      // Authenticated user
+      if (user.role === "ADMIN") {
+        if (currentPath === "/login" || currentPath === "/admin/login" || currentPath === "/admin" || currentPath === "/" || currentPath === "/dashboard") {
+          navigate("/admin/dashboard", { replace: true });
+        }
+      } else {
+        // Non-admin (STUDENT, FACULTY, etc.)
+        if (currentPath === "/login" || currentPath === "/") {
+          navigate("/dashboard", { replace: true });
+        }
+      }
+    }
+  }, [token, user, currentPath, isAdminRoute, isAdminLogin, isInitializing, isLoggingOut, navigate]);
+
+  const handleGeneralLogin = async ({ role, userId, password }) => {
     setLoginError("");
     setSessionError("");
     setLoading(true);
@@ -310,13 +365,19 @@ export function App() {
         throw new Error(result.message || "Login failed");
       }
 
+      // Strict rejection of Administrator accounts without revealing the secret admin URL
+      if (result.data.role === "ADMIN") {
+        throw new Error(
+          "Access denied: this account does not have student or staff privileges for this portal."
+        );
+      }
+
       const expectedRole = ROLE_MAP[role] || role;
 
       if (result.data.role !== expectedRole) {
         throw new Error("Please select the correct role for this account.");
       }
 
-      // Persist token across browser refreshes
       try {
         localStorage.setItem(TOKEN_KEY, result.token);
         localStorage.setItem(LEGACY_TOKEN_KEY, result.token);
@@ -334,7 +395,7 @@ export function App() {
 
       setToken(result.token);
       setUser(userData);
-      setView("dashboard");
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       setLoginError(error.message || "Login failed");
     } finally {
@@ -342,7 +403,50 @@ export function App() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleAdminLogin = async ({ username, password }) => {
+    setAdminLoginError("");
+    setSessionError("");
+    setLoading(true);
+
+    try {
+      const result = await loginAdmin(username, password);
+
+      if (!result.success) {
+        throw new Error(result.message || "Administrator authentication failed");
+      }
+
+      if (result.data.role !== "ADMIN") {
+        throw new Error(
+          "Access restricted: only administrators may log in through the Administrator Portal."
+        );
+      }
+
+      try {
+        localStorage.setItem(TOKEN_KEY, result.token);
+        localStorage.setItem(LEGACY_TOKEN_KEY, result.token);
+      } catch (storageErr) {
+        console.warn("Storage write failed:", storageErr);
+      }
+
+      const userData = await buildUserProfile(result.data, result.token);
+
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(userData));
+      } catch (storageErr) {
+        console.warn("User storage write failed:", storageErr);
+      }
+
+      setToken(result.token);
+      setUser(userData);
+      navigate("/admin/dashboard", { replace: true });
+    } catch (error) {
+      setAdminLoginError(error.message || "Administrator authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGeneralLogout = async () => {
     setIsLoggingOut(true);
     const currentToken = token || getStoredToken();
     if (currentToken) {
@@ -368,17 +472,45 @@ export function App() {
     setLoginError("");
     setSessionError("");
     setIsLoggingOut(false);
-    setView("login");
+    navigate("/login", { replace: true });
   };
 
-  // Admin-only: save edits made in the profile popup
+  const handleAdminLogout = async () => {
+    setIsLoggingOut(true);
+    const currentToken = token || getStoredToken();
+    if (currentToken) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        await logoutUser(currentToken, controller.signal);
+        clearTimeout(timeoutId);
+      } catch (err) {
+        console.warn("Server-side admin logout notice:", err.message);
+      }
+    }
+
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+    setUser(null);
+    setToken(null);
+    setAdminLoginError("");
+    setSessionError("");
+    setIsLoggingOut(false);
+    navigate("/admin/login", { replace: true });
+  };
+
   const handleProfileUpdate = useCallback(
     async (values) => {
       const currentToken = token || getStoredToken();
 
       if (typeof adminApi.updateAdminProfile !== "function") {
         throw new Error(
-          "Profile editing is not available yet: the updateAdminProfile API function is missing.",
+          "Profile editing is not available: the updateAdminProfile API function is missing.",
         );
       }
 
@@ -398,6 +530,7 @@ export function App() {
       const updatedUser = {
         ...user,
         name: values.name,
+        full_name: values.name,
         email: values.email,
         joiningYear: values.joiningYear,
         dateOfBirth: values.dateOfBirth,
@@ -421,7 +554,11 @@ export function App() {
     if (savedToken) {
       restoreSession(savedToken);
     } else {
-      setView("login");
+      if (window.location.pathname.startsWith("/admin")) {
+        navigate("/admin/login", { replace: true });
+      } else {
+        navigate("/login", { replace: true });
+      }
     }
   };
 
@@ -466,7 +603,7 @@ export function App() {
   }
 
   // 2. Network / server failure screen with retry
-  if (sessionError && view !== "login") {
+  if (sessionError && currentPath !== "/login" && !isAdminLogin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg border border-red-100">
@@ -500,7 +637,7 @@ export function App() {
             </button>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={isAdminRoute ? handleAdminLogout : handleGeneralLogout}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
             >
               Sign In to Another Account
@@ -511,40 +648,114 @@ export function App() {
     );
   }
 
-  // 3. Login view
-  if (view === "login") {
-    return (
-      <>
-        <LoginPage
-          onLogin={handleLogin}
-          onForgotPassword={() => setView("forgot")}
+  // 3. Unauthenticated views
+  if (!token || !user) {
+    if (isAdminLogin) {
+      return (
+        <AdminLoginPage
+          onLogin={handleAdminLogin}
           loading={loading}
+          error={adminLoginError}
         />
+      );
+    }
 
-        {loginError && (
-          <div
-            role="alert"
-            className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-xl"
-          >
-            {loginError}
-          </div>
-        )}
-      </>
+    if (isForgotPassword) {
+      return <ForgotPasswordPage onBack={() => navigate("/login")} />;
+    }
+
+    if (isGeneralLogin) {
+      return (
+        <>
+          <LoginPage
+            onLogin={handleGeneralLogin}
+            onForgotPassword={() => navigate("/forgot-password")}
+            loading={loading}
+          />
+
+          {loginError && (
+            <div
+              role="alert"
+              className="fixed bottom-5 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-xl"
+            >
+              {loginError}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Unauthenticated user attempting any unrecognized or wrong route -> 404 error page
+    return (
+      <NotFoundPage
+        user={null}
+        currentPath={currentPath}
+        onNavigate={(to) => navigate(to)}
+      />
     );
   }
 
-  // 4. Forgot password view
-  if (view === "forgot") {
-    return <ForgotPasswordPage onBack={() => setView("login")} />;
+  // 4. Authenticated non-admin attempting to access any admin route -> Strict 403 Forbidden
+  if (user.role !== "ADMIN" && isAdminRoute) {
+    return (
+      <AccessDeniedView
+        user={user}
+        onNavigateToPortal={() => navigate("/dashboard")}
+        onLogout={handleGeneralLogout}
+      />
+    );
   }
 
-  // 5. Authenticated ERP Dashboard
+  // 5. Authenticated Admin user
+  if (user.role === "ADMIN") {
+    if (VALID_ADMIN_MODULE_ROUTES.includes(currentPath)) {
+      return (
+        <ProfileUpdateContext.Provider value={handleProfileUpdate}>
+          <AdminPortal
+            user={user}
+            token={token}
+            currentPath={currentPath}
+            onNavigate={(path) => navigate(path)}
+            onLogout={handleAdminLogout}
+          />
+        </ProfileUpdateContext.Provider>
+      );
+    }
+
+    // Wrong route entered while logged in as Admin -> 404 error page
+    return (
+      <NotFoundPage
+        user={user}
+        currentPath={currentPath}
+        onNavigate={(to) => navigate(to)}
+      />
+    );
+  }
+
+  // 6. Authenticated Student / Faculty user
+  if (currentPath === "/dashboard" || currentPath === "/") {
+    return (
+      <ProfileUpdateContext.Provider value={null}>
+        <Dashboard user={user} token={token} onLogout={handleGeneralLogout} />
+      </ProfileUpdateContext.Provider>
+    );
+  }
+
+  // Wrong route entered while logged in as Student/Faculty -> 404 error page
   return (
-    <ProfileUpdateContext.Provider
-      value={user?.role === "ADMIN" ? handleProfileUpdate : null}
-    >
-      <Dashboard user={user} token={token} onLogout={handleLogout} />
-    </ProfileUpdateContext.Provider>
+    <NotFoundPage
+      user={user}
+      currentPath={currentPath}
+      onNavigate={(to) => navigate(to)}
+    />
+  );
+}
+
+export function App() {
+  return (
+    <RouterProvider>
+      <AppContent />
+    </RouterProvider>
   );
 }
 

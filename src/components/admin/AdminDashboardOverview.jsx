@@ -102,7 +102,7 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
       description:
         "Subjects, course offerings, section mappings, and class schedules",
       icon: AcademicCapIcon,
-      color: "from-green-700 to-indigo-900",
+      color: "from-green-800 to-emerald-950",
       count: "Curriculum & Timetables",
     },
     {

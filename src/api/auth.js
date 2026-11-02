@@ -10,6 +10,16 @@ export async function loginUser(username, password) {
   });
 }
 
+export async function loginAdmin(username, password) {
+  return apiClient("/auth/admin/login", {
+    method: "POST",
+    body: {
+      username: username.trim(),
+      password,
+    },
+  });
+}
+
 export async function getAuthMe(token) {
   return apiClient("/auth/me", {
     method: "GET",
