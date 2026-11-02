@@ -9,6 +9,8 @@ export const API_BASE_URL =
 export const ENDPOINTS = {
   // Authentication
   AUTH_LOGIN: import.meta.env.VITE_AUTH_LOGIN_ENDPOINT || "/auth/login",
+  AUTH_ADMIN_LOGIN:
+    import.meta.env.VITE_AUTH_ADMIN_LOGIN_ENDPOINT || "/auth/admin/login",
   AUTH_ME: import.meta.env.VITE_AUTH_ME_ENDPOINT || "/auth/me",
   AUTH_LOGOUT: import.meta.env.VITE_AUTH_LOGOUT_ENDPOINT || "/auth/logout",
 

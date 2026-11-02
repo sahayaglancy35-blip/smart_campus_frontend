@@ -81,7 +81,8 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
     {
       key: "departments",
       label: "Academic Departments",
-      description: "Manage university schools, degree tracks, and department codes",
+      description:
+        "Manage university schools, degree tracks, and department codes",
       icon: BuildingOffice2Icon,
       color: "from-teal-800 to-green-950",
       count: `${stats.departmentsCount} Departments`,
@@ -89,7 +90,8 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
     {
       key: "infrastructure",
       label: "Campus Blocks & Classrooms",
-      description: "Configure campus facilities, lecture halls, and lab capacities",
+      description:
+        "Configure campus facilities, lecture halls, and lab capacities",
       icon: BuildingStorefrontIcon,
       color: "from-green-800 to-emerald-950",
       count: `${stats.blocksCount} Blocks, ${stats.classroomsCount} Rooms`,
@@ -97,15 +99,17 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
     {
       key: "academics",
       label: "Academics & Timetable",
-      description: "Subjects, course offerings, section mappings, and class schedules",
+      description:
+        "Subjects, course offerings, section mappings, and class schedules",
       icon: AcademicCapIcon,
-      color: "from-blue-700 to-indigo-900",
+      color: "from-green-800 to-emerald-950",
       count: "Curriculum & Timetables",
     },
     {
       key: "sessions",
       label: "Attendance Session Control",
-      description: "Create, initiate, monitor and finalize classroom attendance sessions",
+      description:
+        "Create, initiate, monitor and finalize classroom attendance sessions",
       icon: ClipboardDocumentCheckIcon,
       color: "from-emerald-800 to-green-900",
       count: `${stats.activeSessionsCount} Active Sessions`,
@@ -125,23 +129,56 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
             Welcome, Administrator {user?.name || ""}
           </h2>
           <p className="mt-1 text-sm text-green-100 max-w-2xl">
-            Real-time administrative control of Joy University ERP. Manage campus infrastructure,
-            student registries, faculty designations, and institutional attendance operations.
+            Real-time administrative control of Joy University ERP. Manage
+            campus infrastructure, student registries, faculty designations, and
+            institutional attendance operations.
           </p>
         </div>
       </div>
 
-      {loading && <LoadingSpinner message="Aggregating campus statistics from MySQL..." />}
+      {loading && (
+        <LoadingSpinner message="Aggregating campus statistics from MySQL..." />
+      )}
       {error && <Alert type="error" message={error} />}
 
       {/* Real-time Metric Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Students" value={stats.studentsCount} color="green" icon={UserGroupIcon} />
-        <StatCard label="Faculty" value={stats.facultyCount} color="emerald" icon={IdentificationIcon} />
-        <StatCard label="Departments" value={stats.departmentsCount} color="blue" icon={BuildingOffice2Icon} />
-        <StatCard label="Campus Blocks" value={stats.blocksCount} color="gray" icon={BuildingStorefrontIcon} />
-        <StatCard label="Classrooms" value={stats.classroomsCount} color="gray" icon={AcademicCapIcon} />
-        <StatCard label="Active Sessions" value={stats.activeSessionsCount} color="green" icon={ClipboardDocumentCheckIcon} />
+        <StatCard
+          label="Students"
+          value={stats.studentsCount}
+          color="green"
+          icon={UserGroupIcon}
+        />
+        <StatCard
+          label="Faculty"
+          value={stats.facultyCount}
+          color="emerald"
+          icon={IdentificationIcon}
+        />
+        <StatCard
+          label="Departments"
+          value={stats.departmentsCount}
+          color="green"
+          icon={BuildingOffice2Icon}
+        />
+        <StatCard
+          label="Campus Blocks"
+          value={stats.blocksCount}
+          color="gray"
+          icon={BuildingStorefrontIcon}
+        />
+        <StatCard
+          label="Classrooms"
+          value={stats.classroomsCount}
+          color="gray"
+          icon={AcademicCapIcon}
+        />
+        <StatCard
+          label="Active Sessions"
+          value={stats.activeSessionsCount}
+          color="green"
+          icon={ClipboardDocumentCheckIcon}
+        />
       </div>
 
       {/* Module Navigation Grid */}
@@ -151,7 +188,8 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
             Administrative ERP Modules
           </h3>
           <p className="text-xs text-gray-500">
-            Select an operational module to view registries and perform CRUD workflows.
+            Select an operational module to view registries and perform CRUD
+            workflows.
           </p>
         </div>
 
@@ -188,7 +226,9 @@ export function AdminDashboardOverview({ token, user, onNavigate }) {
 
                 <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs font-semibold text-green-700">
                   <span>Open Management Console</span>
-                  <span className="transition group-hover:translate-x-1">&rarr;</span>
+                  <span className="transition group-hover:translate-x-1">
+                    &rarr;
+                  </span>
                 </div>
               </button>
             );

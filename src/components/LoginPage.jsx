@@ -52,7 +52,7 @@ function LoginPage({ onLogin, onForgotPassword, loading = false }) {
               Welcome back
             </h1>
             <p className="mt-4 max-w-xs text-base leading-relaxed text-green-100">
-              Secure access for students, staff and administrators. Sign in to
+              Secure access for students and faculty members. Sign in to
               continue to your account.
             </p>
           </div>
@@ -87,7 +87,7 @@ function LoginPage({ onLogin, onForgotPassword, loading = false }) {
               <div
                 role="radiogroup"
                 aria-labelledby="role-label"
-                className="grid grid-cols-3 gap-1 rounded-lg bg-green-50 p-1 ring-1 ring-green-100"
+                className="grid grid-cols-2 gap-1 rounded-lg bg-green-50 p-1 ring-1 ring-green-100"
               >
                 {ROLES.map((item) => {
                   const selected = role === item;
