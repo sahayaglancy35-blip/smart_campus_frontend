@@ -1,4 +1,4 @@
-export const ROLES = ["Student", "Staff", "Admin"];
+export const ROLES = ["Student", "Staff"];
 
 export const inputClass =
   "w-full h-12 rounded-lg border border-gray-300 bg-white pl-11 pr-4 text-base text-gray-900 " +
