@@ -11,6 +11,8 @@ import {
   ClipboardDocumentCheckIcon,
   ArrowRightOnRectangleIcon,
   XMarkIcon,
+  BookOpenIcon,
+  ShieldExclamationIcon,
 } from "@heroicons/react/24/outline";
 
 function Avatar({ gender = "male", size = 80 }) {
@@ -66,6 +68,7 @@ export function Sidebar({
 
   const studentNavItems = [
     { key: "dashboard", label: "Dashboard", icon: Squares2X2Icon },
+    { key: "academic-hub", label: "Study Materials & Quizzes", icon: BookOpenIcon },
     { key: "timetable", label: "Today's Timetable", icon: CalendarDaysIcon },
     { key: "summary", label: "Attendance Summary", icon: ChartPieIcon },
     { key: "attendance-logs", label: "Attendance History", icon: ClockIcon },
@@ -79,11 +82,14 @@ export function Sidebar({
     { key: "departments", label: "Departments", icon: BuildingOffice2Icon },
     { key: "infrastructure", label: "Blocks & Classrooms", icon: BuildingStorefrontIcon },
     { key: "academics", label: "Academics & Timetable", icon: AcademicCapIcon },
+    { key: "admin-academic-oversight", label: "Faculty Quizzes & Materials", icon: BookOpenIcon },
     { key: "sessions", label: "Attendance Sessions", icon: ClipboardDocumentCheckIcon },
   ];
 
   const facultyNavItems = [
     { key: "faculty-dashboard", label: "Faculty Dashboard", icon: Squares2X2Icon },
+    { key: "faculty-academics", label: "Materials & Quiz Builder", icon: BookOpenIcon },
+    { key: "faculty-quiz-analytics", label: "Quiz Results & Integrity", icon: ShieldExclamationIcon },
     { key: "timetable", label: "My Schedule", icon: CalendarDaysIcon },
     { key: "sessions", label: "Class Sessions", icon: ClipboardDocumentCheckIcon },
     { key: "faculty-attendance", label: "My Attendance Logs", icon: ClockIcon },

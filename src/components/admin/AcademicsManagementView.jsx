@@ -39,6 +39,9 @@ import Modal from "../common/Modal";
 import ConfirmDialog from "../common/ConfirmDialog";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import { deliveryStyleOf } from "../common/deliveryStyle";
+import { DeliveryLegend } from "../common/DeliveryLegend";
+
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -1237,25 +1240,33 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     {
       header: "Code",
       key: "subject_code",
-      render: (row) => (
-        <span className="font-mono text-xs font-bold text-green-800 bg-green-50 px-2 py-1 rounded">
-          {row.subject_code}
-        </span>
-      ),
+      render: (row) => {
+        const style = deliveryStyleOf({ ...row, subject_name: row.subject_name || row.name });
+        return (
+          <span className={`font-mono text-xs font-bold px-2 py-1 rounded ${style.code}`}>
+            {row.subject_code}
+          </span>
+        );
+      },
     },
     {
       header: "Subject Name",
       key: "name",
-      render: (row) => (
-        <div>
-          <span className="font-bold text-gray-900">{row.name}</span>
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500 font-medium">
-            <span>Category: {row.course_category || "CORE"}</span>
-            <span>•</span>
-            <span className="font-semibold text-emerald-700">{row.delivery_type || "THEORY"}</span>
+      render: (row) => {
+        const style = deliveryStyleOf({ ...row, subject_name: row.subject_name || row.name });
+        return (
+          <div>
+            <span className="font-bold text-gray-900">{row.name}</span>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500 font-medium">
+              <span>Category: {row.course_category || "CORE"}</span>
+              <span>•</span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}>
+                {row.delivery_type || style.label}
+              </span>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: "Department",
@@ -1309,15 +1320,25 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       key: "offering_id",
       render: (row) => `#${row.offering_id}`,
     },
-    {
+        {
       header: "Subject",
       key: "subject_name",
-      render: (row) => (
-        <div>
-          <div className="font-bold text-gray-900">{row.subject_code}</div>
-          <div className="text-xs text-gray-500">{row.subject_name}</div>
-        </div>
-      ),
+      render: (row) => {
+        const style = deliveryStyleOf(row);
+        return (
+          <div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={`rounded px-1.5 py-0.5 font-mono text-xs font-bold ${style.code}`}>
+                {row.subject_code}
+              </span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}>
+                {style.label}
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs text-gray-500">{row.subject_name}</div>
+          </div>
+        );
+      },
     },
     {
       header: "Academic Term",
@@ -1394,15 +1415,33 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
         </div>
       ),
     },
-    {
+        {
       header: "Subject / Offering",
       key: "subject",
-      render: (row) => (
-        <div>
-          <div className="font-bold text-gray-900">{row.subject_code || "Course Offering"}</div>
-          <div className="text-xs text-gray-500">{row.subject_name || `Offering #${row.offering_id}`}</div>
-        </div>
-      ),
+      render: (row) => {
+        const style = deliveryStyleOf(row);
+        return (
+          <div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {row.subject_code ? (
+                <>
+                  <span className={`rounded px-1.5 py-0.5 font-mono text-xs font-bold ${style.code}`}>
+                    {row.subject_code}
+                  </span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}>
+                    {style.label}
+                  </span>
+                </>
+              ) : (
+                <span className="font-bold text-gray-900">Course Offering</span>
+              )}
+            </div>
+            <div className="mt-0.5 text-xs text-gray-500">
+              {row.subject_name || `Offering #${row.offering_id}`}
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: "Enrollment Capacity",
@@ -1459,14 +1498,22 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       key: "subject",
       wrap: true,
       className: "min-w-[180px] max-w-[260px]",
-      render: (row) => (
-        <div>
-          <span className="font-mono text-xs font-bold text-green-800 bg-green-50 px-2 py-0.5 rounded">
-            {row.subject_code}
-          </span>
-          <div className="mt-0.5 text-xs text-gray-900 font-semibold">{row.subject_name}</div>
-        </div>
-      ),
+            render: (row) => {
+        const style = deliveryStyleOf(row);
+        return (
+          <div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={`rounded px-2 py-0.5 font-mono text-xs font-bold ${style.code}`}>
+                {row.subject_code}
+              </span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}>
+                {style.label}
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs text-gray-900 font-semibold">{row.subject_name}</div>
+          </div>
+        );
+      },
     },
     {
       header: "Academic Hierarchy",
@@ -1729,7 +1776,14 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
           )}
         </div>
       </div>
-
+            {(activeTab === "timetable" ||
+        activeTab === "sections" ||
+        activeTab === "offerings" ||
+        activeTab === "subjects") && (
+        <div className="flex justify-end">
+          <DeliveryLegend />
+        </div>
+      )}
       {/* Tab Panels */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-xs overflow-hidden">
         {loading ? (

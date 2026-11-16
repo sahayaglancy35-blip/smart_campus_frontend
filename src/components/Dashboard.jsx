@@ -7,6 +7,7 @@ import StudentTimetableView from "./student/StudentTimetableView";
 import AttendanceSummaryView from "./student/AttendanceSummaryView";
 import AttendanceHistoryView from "./student/AttendanceHistoryView";
 import StudentCoursesView from "./student/StudentCoursesView";
+import StudentAcademicHubView from "./student/StudentAcademicHubView";
 
 // Admin Views
 import AdminDashboardOverview from "./admin/AdminDashboardOverview";
@@ -16,16 +17,20 @@ import DepartmentManagementView from "./admin/DepartmentManagementView";
 import InfrastructureManagementView from "./admin/InfrastructureManagementView";
 import AttendanceSessionsView from "./admin/AttendanceSessionsView";
 import AcademicsManagementView from "./admin/AcademicsManagementView";
+import AdminAcademicOversightView from "./admin/AdminAcademicOversightView";
 
 // Faculty Views
 import FacultyDashboardOverview from "./faculty/FacultyDashboardOverview";
 import { FacultyTimetableView } from "./faculty/FacultyTimetableView";
 import { FacultySessionsView } from "./faculty/FacultySessionsView";
 import { FacultyAttendanceLogsView } from "./faculty/FacultyAttendanceLogsView";
+import FacultyAcademicManagerView from "./faculty/FacultyAcademicManagerView";
+import FacultyQuizAnalyticsView from "./faculty/FacultyQuizAnalyticsView";
 
 const PAGE_TITLES = {
   // Student Titles
   dashboard: "Student Portal Dashboard",
+  "academic-hub": "Study Materials & Quizzes",
   timetable: "Class Schedule & Timetable",
   summary: "Institutional Attendance Summary",
   "attendance-logs": "Granular Attendance History",
@@ -39,16 +44,20 @@ const PAGE_TITLES = {
   departments: "Academic Departments",
   infrastructure: "Campus Infrastructure & Facilities",
   academics: "Academic Offerings & Timetable Management",
+  "admin-academic-oversight": "Faculty Quizzes, Materials & Student Activities",
   sessions: "Attendance Session Management",
 
   // Faculty Titles
   "faculty-dashboard": "Faculty Member Portal",
+  "faculty-academics": "Academic Courseware & Quiz Builder",
+  "faculty-quiz-analytics": "Quiz Results & Integrity Analytics",
   "faculty-attendance": "Teaching Attendance Logs",
 };
 
 const PAGE_SUBTITLES = {
   // Student Subtitles
   dashboard: "Personalized academic performance and daily schedule overview.",
+  "academic-hub": "Topic courseware, in-page document/slides viewer, and proctored unit quizzes.",
   timetable: "Weekly class timetable and lecture hall assignments.",
   summary: "Institutional attendance compliance and course-wise percentages.",
   "attendance-logs": "Granular attendance audit logs and session history.",
@@ -62,17 +71,20 @@ const PAGE_SUBTITLES = {
   departments: "Configure institutional faculties, academic departments, codes, and operational status.",
   infrastructure: "Manage campus blocks, lecture halls, smart classrooms, and labs.",
   academics: "Manage constituent schools, programs, batches, course offerings, and section schedules.",
+  "admin-academic-oversight": "College-wide monitoring of all faculty-authored quizzes, learning materials, and student quiz activities.",
   sessions: "Oversee institutional class attendance sessions and roster records.",
 
   // Faculty Subtitles
   "faculty-dashboard": "Teaching assignments, upcoming lectures, and attendance operations.",
+  "faculty-academics": "Upload curriculum resources, manage question banks, and configure quiz schedules.",
+  "faculty-quiz-analytics": "Class score registries, accuracy analytics, anti-cheat detection, and score corrections.",
   "faculty-attendance": "Audit logs and verified attendance history for your assigned classes.",
 };
 
 const ROLE_PAGES = {
-  STUDENT: ["dashboard", "timetable", "summary", "attendance-logs", "absent-details", "courses"],
-  ADMIN: ["admin-dashboard", "students", "faculty", "departments", "infrastructure", "academics", "sessions"],
-  FACULTY: ["faculty-dashboard", "timetable", "sessions", "faculty-attendance"],
+  STUDENT: ["dashboard", "academic-hub", "timetable", "summary", "attendance-logs", "absent-details", "courses"],
+  ADMIN: ["admin-dashboard", "students", "faculty", "departments", "infrastructure", "academics", "admin-academic-oversight", "sessions"],
+  FACULTY: ["faculty-dashboard", "faculty-academics", "faculty-quiz-analytics", "timetable", "sessions", "faculty-attendance"],
 };
 
 export function Dashboard({ user, token, onLogout }) {
@@ -174,6 +186,14 @@ export function Dashboard({ user, token, onLogout }) {
           />
         );
 
+      case "academic-hub":
+        return (
+          <StudentAcademicHubView
+            token={token}
+            user={user}
+          />
+        );
+
       case "timetable":
         if (role === "FACULTY") {
           return <FacultyTimetableView token={token} />;
@@ -190,7 +210,7 @@ export function Dashboard({ user, token, onLogout }) {
         return <AttendanceHistoryView token={token} initialFilter="ABSENT" />;
 
       case "courses":
-        return <StudentCoursesView token={token} />;
+        return <StudentCoursesView token={token} onNavigate={handleNavigate} />;
 
       // Admin routes
       case "admin-dashboard":
@@ -217,6 +237,9 @@ export function Dashboard({ user, token, onLogout }) {
       case "academics":
         return <AcademicsManagementView token={token} refreshTrigger={refreshTrigger} />;
 
+      case "admin-academic-oversight":
+        return <AdminAcademicOversightView token={token} />;
+
       case "sessions":
         if (role === "FACULTY") {
           return <FacultySessionsView token={token} />;
@@ -232,6 +255,12 @@ export function Dashboard({ user, token, onLogout }) {
             onNavigate={handleNavigate}
           />
         );
+
+      case "faculty-academics":
+        return <FacultyAcademicManagerView token={token} user={user} />;
+
+      case "faculty-quiz-analytics":
+        return <FacultyQuizAnalyticsView token={token} user={user} />;
 
       case "faculty-attendance":
         return <FacultyAttendanceLogsView token={token} />;
