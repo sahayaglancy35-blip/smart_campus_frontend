@@ -110,10 +110,15 @@ export async function apiClient(endpoint, options = {}) {
     ...customConfig
   } = options;
 
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
   const defaultHeaders = {
-    "Content-Type": "application/json",
     ...headers,
   };
+
+  if (!isFormData && !defaultHeaders["Content-Type"]) {
+    defaultHeaders["Content-Type"] = "application/json";
+  }
 
   if (token) {
     defaultHeaders.Authorization = `Bearer ${token}`;
@@ -127,7 +132,7 @@ export async function apiClient(endpoint, options = {}) {
   };
 
   if (body && method !== "GET" && method !== "HEAD") {
-    config.body = typeof body === "string" ? body : JSON.stringify(body);
+    config.body = isFormData ? body : (typeof body === "string" ? body : JSON.stringify(body));
   }
 
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;

@@ -43,7 +43,7 @@ function initialsOf(name = "") {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-export function StudentCoursesView({ token }) {
+export function StudentCoursesView({ token, onNavigate }) {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState(token ? "" : "Please log in to view courses.");
@@ -266,6 +266,16 @@ export function StudentCoursesView({ token }) {
                       {course.registration_type || "REGULAR"}
                     </span>
                   </div>
+
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("academic-hub")}
+                      className="mt-3.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-800 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition"
+                    >
+                      <BookOpenIcon className="h-4 w-4" /> Study Materials & Quizzes &rarr;
+                    </button>
+                  )}
                 </article>
               );
             })}

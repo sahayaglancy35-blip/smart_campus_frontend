@@ -48,7 +48,18 @@ export const ENDPOINTS = {
   ADMIN_SECTIONS: import.meta.env.VITE_ADMIN_SECTIONS_ENDPOINT || "/sections",
   ADMIN_TIMETABLE: import.meta.env.VITE_ADMIN_TIMETABLE_ENDPOINT || "/timetable",
   ADMIN_DESIGNATIONS: import.meta.env.VITE_ADMIN_DESIGNATIONS_ENDPOINT || "/designations",
+  // Attendance Sessions
   ADMIN_ATTENDANCE_SESSIONS:
     import.meta.env.VITE_ADMIN_ATTENDANCE_SESSIONS_ENDPOINT || "/attendance/sessions",
+
+  // Academic Module (Study Materials, Question Bank, Quizzes, Attempts & Results)
+  ACADEMIC_SUBJECTS: import.meta.env.VITE_ACADEMIC_SUBJECTS_ENDPOINT || "/academic/subjects",
+  ACADEMIC_ME_PROGRESS: import.meta.env.VITE_ACADEMIC_ME_PROGRESS_ENDPOINT || "/academic/me/progress",
+  ACADEMIC_TOPICS: import.meta.env.VITE_ACADEMIC_TOPICS_ENDPOINT || "/academic/topics",
+  ACADEMIC_MATERIALS: import.meta.env.VITE_ACADEMIC_MATERIALS_ENDPOINT || "/academic/materials",
+  ACADEMIC_QUIZZES: import.meta.env.VITE_ACADEMIC_QUIZZES_ENDPOINT || "/academic/quizzes",
+  ACADEMIC_QUESTIONS: import.meta.env.VITE_ACADEMIC_QUESTIONS_ENDPOINT || "/academic/questions",
+  ACADEMIC_ATTEMPTS: import.meta.env.VITE_ACADEMIC_ATTEMPTS_ENDPOINT || "/academic/attempts",
+  ACADEMIC_PERMISSIONS: import.meta.env.VITE_ACADEMIC_PERMISSIONS_ENDPOINT || "/academic/permissions",
 };
 
