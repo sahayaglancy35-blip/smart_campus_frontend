@@ -316,6 +316,13 @@ export async function fetchTopicQuestions(token, topicId) {
  * Create a new Question in Topic Question Bank (Manual Creation)
  */
 export async function createQuestion(token, topicId, questionData) {
+  const answer =
+    questionData.answer !== undefined && questionData.answer !== null
+      ? questionData.answer
+      : questionData.correct_answer !== undefined && questionData.correct_answer !== null
+      ? questionData.correct_answer
+      : questionData.correct_option;
+
   return apiClient(`/academic/topics/${topicId}/questions`, {
     method: "POST",
     token,
@@ -323,13 +330,14 @@ export async function createQuestion(token, topicId, questionData) {
       type: questionData.type || "MCQ",
       text: questionData.text,
       options: questionData.options || [],
-      answer: questionData.answer,
+      answer: String(answer ?? "").trim(),
+      correct_answer: String(answer ?? "").trim(),
       explanation: questionData.explanation || "",
       marks: parseFloat(questionData.marks) || 1.0,
       difficulty: questionData.difficulty || "Medium",
       source_ref: questionData.source_ref || "",
       status: questionData.status || "Approved",
-      origin: "Manual",
+      origin: questionData.origin || "Manual",
     },
   });
 }
@@ -338,10 +346,23 @@ export async function createQuestion(token, topicId, questionData) {
  * Update an existing Question
  */
 export async function updateQuestion(token, questionId, questionData) {
+  const answer =
+    questionData.answer !== undefined && questionData.answer !== null
+      ? questionData.answer
+      : questionData.correct_answer !== undefined && questionData.correct_answer !== null
+      ? questionData.correct_answer
+      : questionData.correct_option;
+
+  const body = { ...questionData };
+  if (answer !== undefined && answer !== null) {
+    body.answer = String(answer).trim();
+    body.correct_answer = String(answer).trim();
+  }
+
   return apiClient(`/academic/questions/${questionId}`, {
     method: "PUT",
     token,
-    body: questionData,
+    body,
   });
 }
 

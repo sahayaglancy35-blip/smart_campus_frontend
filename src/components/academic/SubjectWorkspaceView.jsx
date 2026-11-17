@@ -529,25 +529,39 @@ export function SubjectWorkspaceView({
     if (!questionForm.text.trim()) return;
     if (!selectedTopic?.topic_id) return;
 
+    let normalizedType = questionForm.type;
+    if (normalizedType === "True/False") normalizedType = "TrueFalse";
+    if (normalizedType === "Short Answer") normalizedType = "ShortAnswer";
+
+    let options;
+    let answer;
+
+    if (normalizedType === "MCQ") {
+      options = [
+        { key: "A", text: questionForm.option_a },
+        { key: "B", text: questionForm.option_b },
+        { key: "C", text: questionForm.option_c },
+        { key: "D", text: questionForm.option_d },
+      ];
+      answer = questionForm.correct_option || "A";
+    } else if (normalizedType === "TrueFalse") {
+      options = ["True", "False"];
+      answer = questionForm.correct_option || "True";
+    } else {
+      options = null;
+      answer = questionForm.correct_option || questionForm.explanation || "N/A";
+    }
+
     const payload = {
-      text: questionForm.text,
-      type: questionForm.type,
+      text: questionForm.text.trim(),
+      type: normalizedType,
       difficulty: questionForm.difficulty,
       marks: parseInt(questionForm.marks, 10) || 1,
       explanation: questionForm.explanation,
-      options:
-        questionForm.type === "MCQ"
-          ? [
-              { key: "A", text: questionForm.option_a },
-              { key: "B", text: questionForm.option_b },
-              { key: "C", text: questionForm.option_c },
-              { key: "D", text: questionForm.option_d },
-            ]
-          : null,
-      correct_answer:
-        questionForm.type === "MCQ"
-          ? questionForm.correct_option
-          : questionForm.correct_option,
+      options,
+      answer,
+      correct_answer: answer,
+      correct_option: answer,
     };
 
     try {
@@ -619,13 +633,16 @@ export function SubjectWorkspaceView({
 
   const handleImportDraftQuestion = async (draft) => {
     try {
+      const answer = draft.answer || draft.correct_answer || draft.correct_option || "A";
       await createQuestion(token, selectedTopic.topic_id, {
         text: draft.text,
         type: draft.type || "MCQ",
         difficulty: draft.difficulty || "Medium",
         marks: draft.marks || 1,
         options: draft.options,
-        correct_answer: draft.correct_answer,
+        answer,
+        correct_answer: answer,
+        correct_option: answer,
         explanation: draft.explanation,
       });
       setAiDraftQuestions((prev) => prev.filter((d) => d !== draft));
@@ -1610,11 +1627,19 @@ export function SubjectWorkspaceView({
                   {/* Options Display */}
                   {Array.isArray(q.options) && q.options.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                      {q.options.map((opt) => {
-                        const isCorrect = String(opt.key).toUpperCase() === String(q.correct_answer).toUpperCase();
+                      {q.options.map((opt, optIdx) => {
+                        const optKey =
+                          typeof opt === "object" && opt !== null
+                            ? opt.key
+                            : ["A", "B", "C", "D"][optIdx] || String(optIdx + 1);
+                        const optText = typeof opt === "object" && opt !== null ? opt.text : opt;
+                        const correctVal = q.correct_answer || q.answer || "";
+                        const isCorrect =
+                          (optKey && String(optKey).toUpperCase() === String(correctVal).toUpperCase()) ||
+                          (optText && String(optText).trim().toLowerCase() === String(correctVal).trim().toLowerCase());
                         return (
                           <div
-                            key={opt.key}
+                            key={optKey || `opt_${optIdx}`}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between ${
                               isCorrect
                                 ? "bg-emerald-50 text-emerald-900 border border-emerald-300 font-bold"
@@ -1622,8 +1647,8 @@ export function SubjectWorkspaceView({
                             }`}
                           >
                             <span>
-                              <span className="font-bold mr-1.5">{opt.key}.</span>
-                              {opt.text}
+                              <span className="font-bold mr-1.5">{optKey}.</span>
+                              {optText}
                             </span>
                             {isCorrect && (
                               <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1972,8 +1997,8 @@ export function SubjectWorkspaceView({
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
                 >
                   <option value="MCQ">Multiple Choice</option>
-                  <option value="True/False">True / False</option>
-                  <option value="Short Answer">Short Answer</option>
+                  <option value="TrueFalse">True / False</option>
+                  <option value="ShortAnswer">Short Answer</option>
                 </select>
               </div>
 
@@ -2072,6 +2097,38 @@ export function SubjectWorkspaceView({
                     <option value="D">Option D</option>
                   </select>
                 </div>
+              </div>
+            )}
+
+            {(questionForm.type === "TrueFalse" || questionForm.type === "True/False") && (
+              <div className="pt-2 border-t border-gray-100">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Correct Answer
+                </label>
+                <select
+                  value={questionForm.correct_option || "True"}
+                  onChange={(e) => setQuestionForm({ ...questionForm, correct_option: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
+                >
+                  <option value="True">True</option>
+                  <option value="False">False</option>
+                </select>
+              </div>
+            )}
+
+            {(questionForm.type === "ShortAnswer" || questionForm.type === "Short Answer") && (
+              <div className="pt-2 border-t border-gray-100">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Expected Answer / Key Phrase
+                </label>
+                <input
+                  type="text"
+                  value={questionForm.correct_option || ""}
+                  onChange={(e) => setQuestionForm({ ...questionForm, correct_option: e.target.value })}
+                  placeholder="Expected answer key..."
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300"
+                  required
+                />
               </div>
             )}
 
