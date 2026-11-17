@@ -1,31 +1,38 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import AppLayout from "./layout/AppLayout";
+import LoadingSpinner from "./common/LoadingSpinner";
 
 // Student Views
-import StudentDashboardOverview from "./student/StudentDashboardOverview";
-import StudentTimetableView from "./student/StudentTimetableView";
-import AttendanceSummaryView from "./student/AttendanceSummaryView";
-import AttendanceHistoryView from "./student/AttendanceHistoryView";
-import StudentCoursesView from "./student/StudentCoursesView";
-import StudentAcademicHubView from "./student/StudentAcademicHubView";
+const StudentDashboardOverview = lazy(() => import("./student/StudentDashboardOverview"));
+const StudentTimetableView = lazy(() => import("./student/StudentTimetableView"));
+const AttendanceSummaryView = lazy(() => import("./student/AttendanceSummaryView"));
+const AttendanceHistoryView = lazy(() => import("./student/AttendanceHistoryView"));
+const StudentCoursesView = lazy(() => import("./student/StudentCoursesView"));
+const StudentAcademicHubView = lazy(() => import("./student/StudentAcademicHubView"));
 
 // Admin Views
-import AdminDashboardOverview from "./admin/AdminDashboardOverview";
-import StudentManagementView from "./admin/StudentManagementView";
-import FacultyManagementView from "./admin/FacultyManagementView";
-import DepartmentManagementView from "./admin/DepartmentManagementView";
-import InfrastructureManagementView from "./admin/InfrastructureManagementView";
-import AttendanceSessionsView from "./admin/AttendanceSessionsView";
-import AcademicsManagementView from "./admin/AcademicsManagementView";
-import AdminAcademicOversightView from "./admin/AdminAcademicOversightView";
+const AdminDashboardOverview = lazy(() => import("./admin/AdminDashboardOverview"));
+const StudentManagementView = lazy(() => import("./admin/StudentManagementView"));
+const FacultyManagementView = lazy(() => import("./admin/FacultyManagementView"));
+const DepartmentManagementView = lazy(() => import("./admin/DepartmentManagementView"));
+const InfrastructureManagementView = lazy(() => import("./admin/InfrastructureManagementView"));
+const AttendanceSessionsView = lazy(() => import("./admin/AttendanceSessionsView"));
+const AcademicsManagementView = lazy(() => import("./admin/AcademicsManagementView"));
+const AdminAcademicOversightView = lazy(() => import("./admin/AdminAcademicOversightView"));
 
 // Faculty Views
-import FacultyDashboardOverview from "./faculty/FacultyDashboardOverview";
-import { FacultyTimetableView } from "./faculty/FacultyTimetableView";
-import { FacultySessionsView } from "./faculty/FacultySessionsView";
-import { FacultyAttendanceLogsView } from "./faculty/FacultyAttendanceLogsView";
-import FacultyAcademicManagerView from "./faculty/FacultyAcademicManagerView";
-import FacultyQuizAnalyticsView from "./faculty/FacultyQuizAnalyticsView";
+const FacultyDashboardOverview = lazy(() => import("./faculty/FacultyDashboardOverview"));
+const FacultyTimetableView = lazy(() =>
+  import("./faculty/FacultyTimetableView").then((m) => ({ default: m.FacultyTimetableView }))
+);
+const FacultySessionsView = lazy(() =>
+  import("./faculty/FacultySessionsView").then((m) => ({ default: m.FacultySessionsView }))
+);
+const FacultyAttendanceLogsView = lazy(() =>
+  import("./faculty/FacultyAttendanceLogsView").then((m) => ({ default: m.FacultyAttendanceLogsView }))
+);
+const FacultyAcademicManagerView = lazy(() => import("./faculty/FacultyAcademicManagerView"));
+const FacultyQuizAnalyticsView = lazy(() => import("./faculty/FacultyQuizAnalyticsView"));
 
 const PAGE_TITLES = {
   // Student Titles
@@ -44,41 +51,41 @@ const PAGE_TITLES = {
   departments: "Academic Departments",
   infrastructure: "Campus Infrastructure & Facilities",
   academics: "Academic Offerings & Timetable Management",
-  "admin-academic-oversight": "Faculty Quizzes, Materials & Student Activities",
+  "admin-academic-oversight": "Academic Oversight",
   sessions: "Attendance Session Management",
 
   // Faculty Titles
   "faculty-dashboard": "Faculty Member Portal",
   "faculty-academics": "Academic Courseware & Quiz Builder",
-  "faculty-quiz-analytics": "Quiz Results & Integrity Analytics",
+  "faculty-quiz-analytics": "Assessment Analytics",
   "faculty-attendance": "Teaching Attendance Logs",
 };
 
 const PAGE_SUBTITLES = {
   // Student Subtitles
-  dashboard: "Personalized academic performance and daily schedule overview.",
-  "academic-hub": "Topic courseware, in-page document/slides viewer, and proctored unit quizzes.",
+  dashboard: "Personalized academic performance and daily schedule.",
+  "academic-hub": "Topic courseware and unit assessments.",
   timetable: "Weekly class timetable and lecture hall assignments.",
-  summary: "Institutional attendance compliance and course-wise percentages.",
-  "attendance-logs": "Granular attendance audit logs and session history.",
-  "absent-details": "Records of missed class sessions and attendance alerts.",
-  courses: "Active enrolled curriculum, course coordinators, and academic credits.",
+  summary: "Institutional attendance compliance and course percentages.",
+  "attendance-logs": "Attendance audit logs and session history.",
+  "absent-details": "Absence records and attendance alerts.",
+  courses: "Active enrolled curriculum and academic credits.",
 
   // Admin Subtitles
-  "admin-dashboard": "Institutional statistics, registry metrics, and operational control.",
-  students: "Manage student enrollments, academic cohorts, and profiles.",
-  faculty: "Manage academic faculty, staff designations, and departmental affiliations.",
-  departments: "Configure institutional faculties, academic departments, codes, and operational status.",
-  infrastructure: "Manage campus blocks, lecture halls, smart classrooms, and labs.",
-  academics: "Manage constituent schools, programs, batches, course offerings, and section schedules.",
-  "admin-academic-oversight": "College-wide monitoring of all faculty-authored quizzes, learning materials, and student quiz activities.",
-  sessions: "Oversee institutional class attendance sessions and roster records.",
+  "admin-dashboard": "Institutional statistics and operational metrics.",
+  students: "Student enrollments and academic cohorts.",
+  faculty: "Faculty designations and departmental affiliations.",
+  departments: "Academic departments and degree offerings.",
+  infrastructure: "Campus blocks, classrooms, and labs.",
+  academics: "Curriculum offerings and section schedules.",
+  "admin-academic-oversight": "Curriculum materials, quizzes, and assessment oversight.",
+  sessions: "Institutional class attendance sessions.",
 
   // Faculty Subtitles
-  "faculty-dashboard": "Teaching assignments, upcoming lectures, and attendance operations.",
-  "faculty-academics": "Upload curriculum resources, manage question banks, and configure quiz schedules.",
-  "faculty-quiz-analytics": "Class score registries, accuracy analytics, anti-cheat detection, and score corrections.",
-  "faculty-attendance": "Audit logs and verified attendance history for your assigned classes.",
+  "faculty-dashboard": "Teaching assignments and daily schedule.",
+  "faculty-academics": "Curriculum courseware, question banks, and quizzes.",
+  "faculty-quiz-analytics": "Candidate performance, score registries, and integrity monitoring.",
+  "faculty-attendance": "Verified attendance logs for assigned classes.",
 };
 
 const ROLE_PAGES = {
@@ -107,12 +114,21 @@ export function Dashboard({ user, token, onLogout }) {
     [role, initialPage]
   );
 
-  // Initialize page state from URL hash -> localStorage -> initialPage
+  // Initialize page state from URL pathname -> URL hash -> localStorage -> initialPage
   const [page, setPageState] = useState(() => {
-    if (typeof window !== "undefined" && window.location.hash) {
-      const hash = window.location.hash.replace(/^#[/]?/, "").split("?")[0].trim();
-      const allowed = ROLE_PAGES[role] || ROLE_PAGES.STUDENT;
-      if (allowed.includes(hash)) return hash;
+    if (typeof window !== "undefined") {
+      const pathname = window.location.pathname || "";
+      if (
+        pathname.startsWith("/faculty/academic") ||
+        pathname.startsWith("/hod/academic")
+      ) {
+        return "faculty-academics";
+      }
+      if (window.location.hash) {
+        const hash = window.location.hash.replace(/^#[/]?/, "").split("?")[0].trim();
+        const allowed = ROLE_PAGES[role] || ROLE_PAGES.STUDENT;
+        if (allowed.includes(hash)) return hash;
+      }
     }
     try {
       const stored = localStorage.getItem(`ju_erp_active_page_${role}`);
@@ -136,7 +152,11 @@ export function Dashboard({ user, token, onLogout }) {
       setPageState(resolved);
       try {
         localStorage.setItem(`ju_erp_active_page_${role}`, resolved);
-        if (window.location.hash !== `#${resolved}`) {
+        const pathname = window.location.pathname || "";
+        const isDedicatedRoute =
+          pathname.startsWith("/faculty/academic") ||
+          pathname.startsWith("/hod/academic");
+        if (!isDedicatedRoute && window.location.hash !== `#${resolved}`) {
           window.history.replaceState(null, "", `#${resolved}`);
         }
       } catch {
@@ -150,7 +170,11 @@ export function Dashboard({ user, token, onLogout }) {
   useEffect(() => {
     try {
       localStorage.setItem(`ju_erp_active_page_${role}`, page);
-      if (window.location.hash !== `#${page}`) {
+      const pathname = window.location.pathname || "";
+      const isDedicatedRoute =
+        pathname.startsWith("/faculty/academic") ||
+        pathname.startsWith("/hod/academic");
+      if (!isDedicatedRoute && window.location.hash !== `#${page}`) {
         window.history.replaceState(null, "", `#${page}`);
       }
     } catch {
@@ -296,7 +320,11 @@ export function Dashboard({ user, token, onLogout }) {
       pageTitle={PAGE_TITLES[page] || "Joy University ERP"}
       pageSubtitle={PAGE_SUBTITLES[page] || "Joy University Smart Campus Enterprise Portal"}
     >
-      <div key={page}>{renderContent()}</div>
+      <div key={page}>
+        <Suspense fallback={<LoadingSpinner message="Loading module..." />}>
+          {renderContent()}
+        </Suspense>
+      </div>
     </AppLayout>
   );
 }
