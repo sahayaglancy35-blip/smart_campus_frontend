@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  fetchSubjects,
   fetchSubjectTopics,
   fetchTopicMaterials,
   fetchTopicQuiz,
@@ -9,6 +8,7 @@ import {
   startQuizAttempt,
 } from "../../api/academic";
 import { fmtDateTime } from "../../utils/datetime";
+import { CoursePicker, TopicList, TopicHeader } from "../academic/AcademicShared";
 import MaterialViewerModal from "../academic/MaterialViewerModal";
 import QuizAttemptView from "../academic/QuizAttemptView";
 import QuizResultView from "../academic/QuizResultView";
@@ -23,7 +23,6 @@ import {
   CheckCircleIcon,
   LockClosedIcon,
   ClockIcon,
-  ChevronRightIcon,
   ShieldExclamationIcon,
   ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -36,9 +35,7 @@ const STATUS_LABEL = {
   DISQUALIFIED: "Disqualified",
 };
 
-export default function StudentAcademicHubView({ token, user, initialSubjectId = null }) {
-  const [subjects, setSubjects] = useState([]);
-  const [selectedSubject, setSelectedSubject] = useState(null);
+function StudentCourseWorkspace({ token, user, subject, header }) {
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [materials, setMaterials] = useState([]);
@@ -53,37 +50,11 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
   const [resultData, setResultData] = useState(null);
   const [integrityAlert, setIntegrityAlert] = useState("");
 
-  // Load subjects (server returns only the subjects this student is enrolled in)
-  const loadSubjects = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await fetchSubjects(token);
-      const subs = Array.isArray(res?.data) ? res.data : [];
-      setSubjects(subs);
-
-      if (subs.length > 0) {
-        const found = initialSubjectId
-          ? subs.find((s) => String(s.subject_id) === String(initialSubjectId)) || subs[0]
-          : subs[0];
-        setSelectedSubject(found);
-      }
-    } catch (err) {
-      setError(err.message || "Failed to load academic subjects");
-    } finally {
-      setLoading(false);
-    }
-  }, [token, initialSubjectId]);
-
-  useEffect(() => {
-    loadSubjects();
-  }, [loadSubjects]);
-
   // Load topics when the selected subject changes
   const loadTopics = useCallback(async () => {
-    if (!selectedSubject) return;
+    if (!subject) return;
     try {
-      const res = await fetchSubjectTopics(token, selectedSubject.subject_id);
+      const res = await fetchSubjectTopics(token, subject.subject_id);
       const topicList = Array.isArray(res?.data) ? res.data : [];
       setTopics(topicList);
       if (topicList.length > 0) {
@@ -96,8 +67,10 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
       }
     } catch (err) {
       setError(err.message || "Failed to load topics");
+    } finally {
+      setLoading(false);
     }
-  }, [token, selectedSubject]);
+  }, [token, subject]);
 
   useEffect(() => {
     loadTopics();
@@ -266,66 +239,14 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
 
       {error && <Alert type="error" message={error} onClose={() => setError("")} />}
 
-      {/* ================= Subject Selector Tabs ================= */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
-        {subjects.length === 0 && (
-          <p className="text-xs text-slate-500">You are not enrolled in any subject yet.</p>
-        )}
-        {subjects.map((sub) => {
-          const isSelected = selectedSubject?.subject_id === sub.subject_id;
-          return (
-            <button
-              key={sub.subject_id}
-              type="button"
-              onClick={() => setSelectedSubject(sub)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
-                isSelected
-                  ? "bg-emerald-800 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              <AcademicCapIcon className="h-4 w-4" />
-              <span>{sub.code || sub.subject_code}</span>
-              <span className="hidden sm:inline font-normal opacity-80">&bull; {sub.name}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* The opened course header (only this course is shown) */}
+      {header}
 
       {/* ================= Main Split Stage: Topics & Content ================= */}
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-4">
         {/* Left Topics Nav */}
-        <div className="lg:col-span-1 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
-            Course Topics & Units
-          </h3>
-          <div className="space-y-1.5">
-            {topics.map((t) => {
-              const isSelected = selectedTopic?.topic_id === t.topic_id;
-              return (
-                <button
-                  key={t.topic_id}
-                  type="button"
-                  onClick={() => setSelectedTopic(t)}
-                  className={`w-full text-left rounded-2xl p-3.5 transition flex items-center justify-between gap-2 border ${
-                    isSelected
-                      ? "bg-white border-emerald-600 shadow-sm ring-1 ring-emerald-600/30 text-emerald-950 font-bold"
-                      : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-white"
-                  }`}
-                >
-                  <div className="truncate">
-                    <span className="block text-[10px] font-mono uppercase tracking-wider text-emerald-800">
-                      Unit {t.position}
-                    </span>
-                    <span className="block text-xs leading-snug truncate mt-0.5">{t.title}</span>
-                  </div>
-                  <ChevronRightIcon
-                    className={`h-4 w-4 shrink-0 ${isSelected ? "text-emerald-700" : "text-slate-400"}`}
-                  />
-                </button>
-              );
-            })}
-          </div>
+        <div className="lg:col-span-1">
+          <TopicList topics={topics} selectedId={selectedTopic?.topic_id} onSelect={setSelectedTopic} />
         </div>
 
         {/* Right Stage: Topic Materials & Quiz Card */}
@@ -333,21 +254,11 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
           {selectedTopic ? (
             <>
               {/* Topic Header Card */}
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 font-mono">
-                      Unit {selectedTopic.position}
-                    </span>
-                    <h2 className="text-xl font-bold text-slate-900 mt-1">{selectedTopic.title}</h2>
-                    <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                      {selectedTopic.description}
-                    </p>
-                  </div>
-
-                  {/* Progress tracker badge */}
-                  <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 border border-slate-200 shrink-0">
-                    <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+              <TopicHeader
+                topic={selectedTopic}
+                aside={
+                  <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-xs font-bold text-white">
                       {progressPercent}%
                     </div>
                     <div>
@@ -357,16 +268,13 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                       <span className="block text-[11px] text-slate-500">Prerequisite progress</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full bg-emerald-600 transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-              </div>
+                }
+                footer={
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full bg-emerald-600 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                }
+              />
 
               {/* Study Materials List */}
               <div className="space-y-3">
@@ -594,5 +502,21 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
         token={token}
       />
     </div>
+  );
+}
+
+export default function StudentAcademicHubView({ token, user, initialSubjectId = null }) {
+  return (
+    <CoursePicker
+      token={token}
+      heading="My Courses"
+      subheading="Choose a course to open its study materials and quiz."
+      emptyText="You are not enrolled in any course yet."
+      initialSubjectId={initialSubjectId}
+    >
+      {(subject, header) => (
+        <StudentCourseWorkspace key={subject.subject_id} token={token} user={user} subject={subject} header={header} />
+      )}
+    </CoursePicker>
   );
 }

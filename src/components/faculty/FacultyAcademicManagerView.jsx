@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  fetchSubjects,
   fetchSubjectTopics,
   createTopic,
   updateTopic,
   deleteTopic,
   fetchTopicMaterials,
-  createMaterial,
+  uploadMaterial,
   togglePublishMaterial,
   deleteMaterial,
   fetchMaterialVersions,
@@ -18,40 +17,31 @@ import {
   deleteQuestion,
   previewQuiz,
 } from "../../api/academic";
+import { CoursePicker, TopicList, TopicHeader } from "../academic/AcademicShared";
 import Modal from "../common/Modal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import {
-  AcademicCapIcon,
-  BookOpenIcon,
   DocumentPlusIcon,
-  SparklesIcon,
   EyeIcon,
   PencilSquareIcon,
   TrashIcon,
-  CheckCircleIcon,
-  XMarkIcon,
   ClockIcon,
   CalendarDaysIcon,
   CloudArrowUpIcon,
   DocumentTextIcon,
   PlayIcon,
   PresentationChartBarIcon,
-  ArrowPathIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 
+// datetime-local works in LOCAL time; the API stores UTC ISO strings.
 function toLocalDatetimeInput(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const mm = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const min = pad(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function fromLocalDatetimeInput(localStr) {
@@ -61,9 +51,32 @@ function fromLocalDatetimeInput(localStr) {
   return d.toISOString();
 }
 
-export default function FacultyAcademicManagerView({ token, user }) {
-  const [subjects, setSubjects] = useState([]);
-  const [selectedSubject, setSelectedSubject] = useState(null);
+const ACCEPT = { PDF: ".pdf", Slide: ".ppt,.pptx", Video: "video/mp4" };
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+const EMPTY_MATERIAL = {
+  title: "",
+  type: "PDF",
+  description: "",
+  required_flag: true,
+  status: "Published",
+  file: null,
+  notes_content: "",
+  video_url: "",
+};
+
+const EMPTY_QUESTION = {
+  type: "MCQ",
+  text: "",
+  options: ["", "", "", ""],
+  answer: "",
+  explanation: "",
+  marks: 1.0,
+  difficulty: "Medium",
+  source_ref: "",
+};
+
+function FacultyCourseWorkspace({ token, user, subject, header }) {
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [materials, setMaterials] = useState([]);
@@ -83,15 +96,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [materialForm, setMaterialForm] = useState({
-    title: "",
-    type: "PDF",
-    description: "",
-    required_flag: true,
-    status: "Published",
-    file: null,
-    notes_content: "",
-  });
+  const [materialForm, setMaterialForm] = useState(EMPTY_MATERIAL);
 
   const [versionHistoryMat, setVersionHistoryMat] = useState(null);
   const [versionList, setVersionList] = useState([]);
@@ -99,47 +104,17 @@ export default function FacultyAcademicManagerView({ token, user }) {
   // Question Editor Modal
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
-  const [questionForm, setQuestionForm] = useState({
-    type: "MCQ",
-    text: "",
-    options: ["", "", "", ""],
-    answer: "",
-    explanation: "",
-    marks: 1.0,
-    difficulty: "Medium",
-    source_ref: "",
-  });
+  const [questionForm, setQuestionForm] = useState(EMPTY_QUESTION);
 
   // Quiz Preview Modal
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
 
-  // Load Subjects
-  const loadSubjects = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetchSubjects(token);
-      const list = Array.isArray(res?.data) ? res.data : [];
-      setSubjects(list);
-      if (list.length > 0) {
-        setSelectedSubject(list[0]);
-      }
-    } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to load subjects" });
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    loadSubjects();
-  }, [loadSubjects]);
-
-  // Load Topics
+  // Load topics
   const loadTopics = useCallback(async () => {
-    if (!selectedSubject) return;
+    if (!subject) return;
     try {
-      const res = await fetchSubjectTopics(token, selectedSubject.subject_id);
+      const res = await fetchSubjectTopics(token, subject.subject_id);
       const list = Array.isArray(res?.data) ? res.data : [];
       setTopics(list);
       if (list.length > 0) {
@@ -151,15 +126,17 @@ export default function FacultyAcademicManagerView({ token, user }) {
         setQuestions([]);
       }
     } catch (err) {
-      console.error("Failed to load topics:", err);
+      setFeedback({ type: "error", message: err.message || "Failed to load topics" });
+    } finally {
+      setLoading(false);
     }
-  }, [token, selectedSubject]);
+  }, [token, subject]);
 
   useEffect(() => {
     loadTopics();
   }, [loadTopics]);
 
-  // Load Topic Details (materials, quiz, questions)
+  // Load topic details (materials, quiz, questions)
   const loadTopicDetails = useCallback(async () => {
     if (!selectedTopic) return;
     try {
@@ -169,10 +146,26 @@ export default function FacultyAcademicManagerView({ token, user }) {
         fetchTopicQuestions(token, selectedTopic.topic_id),
       ]);
       setMaterials(Array.isArray(matRes?.data) ? matRes.data : []);
-      setQuiz(quizRes?.data || null);
+      // A topic with no quiz yet gets an editable draft so the Quiz tab is never blank
+      setQuiz(
+        quizRes?.data || {
+          quiz_id: null,
+          topic_id: selectedTopic.topic_id,
+          title: `${selectedTopic.title} Quiz`,
+          status: "Draft",
+          time_limit: 15,
+          pass_mark: 60,
+          max_attempts: 1,
+          open_at: null,
+          close_at: null,
+          shuffle_questions: 1,
+          shuffle_options: 1,
+          show_explanation: 1,
+        }
+      );
       setQuestions(Array.isArray(qRes?.data) ? qRes.data : []);
     } catch (err) {
-      console.error("Failed to load topic details:", err);
+      setFeedback({ type: "error", message: err.message || "Failed to load topic details" });
     }
   }, [token, selectedTopic]);
 
@@ -180,7 +173,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
     loadTopicDetails();
   }, [loadTopicDetails]);
 
-  // Topic Save Handler
+  // Topic save
   const handleSaveTopic = async (e) => {
     e.preventDefault();
     try {
@@ -188,7 +181,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
         await updateTopic(token, editingTopic.topic_id, topicForm);
         setFeedback({ type: "success", message: "Topic updated successfully" });
       } else {
-        await createTopic(token, selectedSubject.subject_id, topicForm);
+        await createTopic(token, subject.subject_id, topicForm);
         setFeedback({ type: "success", message: "New topic unit created" });
       }
       setShowTopicModal(false);
@@ -198,57 +191,60 @@ export default function FacultyAcademicManagerView({ token, user }) {
     }
   };
 
-  // Material Upload Handler with Drag-and-Drop & Progress Bar
+  // Material upload: sends the REAL file (multipart) with real progress
   const handleUploadMaterial = async (e) => {
     e.preventDefault();
-    if (!materialForm.title.trim()) {
-      alert("Please specify a title");
-      return;
+    const f = materialForm.file;
+    const fail = (message) => setFeedback({ type: "error", message });
+
+    if (!materialForm.title.trim()) return fail("Please enter a title");
+    if (materialForm.type === "Notes" && !materialForm.notes_content.trim()) {
+      return fail("Write the notes text");
+    }
+    if (["PDF", "Slide"].includes(materialForm.type) && !f) {
+      return fail("Choose or drop a file first");
+    }
+    if (materialForm.type === "Video" && !f && !materialForm.video_url.trim()) {
+      return fail("Upload an MP4 or paste a video link");
+    }
+    if (f) {
+      const ok = { PDF: /\.pdf$/i, Slide: /\.pptx?$/i, Video: /\.mp4$/i }[materialForm.type];
+      if (ok && !ok.test(f.name)) {
+        return fail(`This type accepts ${ACCEPT[materialForm.type]} files only`);
+      }
+      if (f.size > MAX_UPLOAD_BYTES) return fail("File is larger than 50 MB");
     }
 
     try {
       setIsUploading(true);
-      setUploadProgress(15);
-
-      // Simulate network upload stages
-      const interval = setInterval(() => {
-        setUploadProgress((p) => {
-          if (p >= 85) {
-            clearInterval(interval);
-            return 90;
-          }
-          return p + 25;
-        });
-      }, 150);
-
-      await createMaterial(token, selectedTopic.topic_id, {
-        title: materialForm.title,
-        type: materialForm.type,
-        description: materialForm.description,
-        required_flag: materialForm.required_flag ? 1 : 0,
-        status: materialForm.status,
-        file_ref: materialForm.file ? materialForm.file.name : `${materialForm.title.toLowerCase().replace(/\s+/g, "_")}.${materialForm.type === "PDF" ? "pdf" : "pptx"}`,
-        file_size: materialForm.file ? materialForm.file.size : 2048500,
-        notes_content: materialForm.notes_content,
-      });
-
-      clearInterval(interval);
-      setUploadProgress(100);
-
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-        setShowMaterialModal(false);
-        setFeedback({ type: "success", message: "Study material published to course topic" });
-        loadTopicDetails();
-      }, 400);
+      setUploadProgress(0);
+      await uploadMaterial(
+        token,
+        selectedTopic.topic_id,
+        {
+          title: materialForm.title,
+          type: materialForm.type,
+          description: materialForm.description,
+          required_flag: materialForm.required_flag ? 1 : 0,
+          status: materialForm.status,
+          content: materialForm.notes_content,
+          url: materialForm.video_url,
+          file: f || undefined,
+        },
+        setUploadProgress
+      );
+      setShowMaterialModal(false);
+      setFeedback({ type: "success", message: "Study material uploaded" });
+      loadTopicDetails();
     } catch (err) {
+      fail(err.message || "Failed to upload material");
+    } finally {
       setIsUploading(false);
-      setFeedback({ type: "error", message: err.message || "Failed to upload material" });
+      setUploadProgress(0);
     }
   };
 
-  // Material Publish Toggle
+  // Material publish toggle
   const handleTogglePublish = async (materialId, currentStatus) => {
     try {
       const nextStatus = currentStatus === "Published" ? "Draft" : "Published";
@@ -260,16 +256,27 @@ export default function FacultyAcademicManagerView({ token, user }) {
     }
   };
 
-  // Material Version History
+  // Material version history
   const handleViewVersions = async (mat) => {
     setVersionHistoryMat(mat);
-    const res = await fetchMaterialVersions(token, mat.material_id);
-    setVersionList(res.data || []);
+    setVersionList([]);
+    try {
+      const res = await fetchMaterialVersions(token, mat.material_id);
+      setVersionList(res.data || []);
+    } catch (err) {
+      setFeedback({ type: "error", message: err.message || "Could not load version history" });
+    }
   };
 
-  // Quiz Settings Save Handler
+  // Quiz settings save (schedule, rules, publish)
   const handleSaveQuizSettings = async (e) => {
     e.preventDefault();
+    if (quiz.open_at && quiz.close_at && new Date(quiz.close_at) <= new Date(quiz.open_at)) {
+      return setFeedback({ type: "error", message: "Close time must be after the open time" });
+    }
+    if (quiz.status === "Published" && questions.length === 0) {
+      return setFeedback({ type: "error", message: "Add at least one question before publishing" });
+    }
     try {
       await updateTopicQuiz(token, selectedTopic.topic_id, quiz);
       setFeedback({ type: "success", message: "Quiz settings & schedule updated successfully" });
@@ -279,14 +286,27 @@ export default function FacultyAcademicManagerView({ token, user }) {
     }
   };
 
-  // Question Bank Save Handler (Add / Edit)
+  const openNewQuestion = () => {
+    setEditingQuestion(null);
+    setQuestionForm({ ...EMPTY_QUESTION, options: ["", "", "", ""] });
+    setShowQuestionModal(true);
+  };
+
+  // Question save (add / edit)
   const handleSaveQuestion = async (e) => {
     e.preventDefault();
     try {
+      const options =
+        questionForm.type === "MCQ"
+          ? questionForm.options.filter((o) => o.trim())
+          : questionForm.type === "TrueFalse"
+          ? ["True", "False"]
+          : [];
+
       const payload = {
         type: questionForm.type,
         text: questionForm.text,
-        options: questionForm.type === "MCQ" ? questionForm.options.filter((o) => o.trim()) : ["True", "False"],
+        options,
         answer: questionForm.answer,
         explanation: questionForm.explanation,
         marks: parseFloat(questionForm.marks) || 1.0,
@@ -310,7 +330,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
     }
   };
 
-  // Delete Question
+  // Delete question
   const handleDeleteQuestion = async (qId) => {
     if (!confirm("Are you sure you want to delete this question?")) return;
     try {
@@ -322,14 +342,14 @@ export default function FacultyAcademicManagerView({ token, user }) {
     }
   };
 
-  // Preview Quiz
+  // Preview quiz
   const handleOpenPreview = async () => {
     try {
       const res = await previewQuiz(token, selectedTopic.topic_id);
       setPreviewData(res.data);
       setShowPreviewModal(true);
     } catch (err) {
-      alert("Preview error: " + err.message);
+      setFeedback({ type: "error", message: "Preview error: " + err.message });
     }
   };
 
@@ -360,7 +380,8 @@ export default function FacultyAcademicManagerView({ token, user }) {
                 Department Head Oversight & Management
               </h3>
               <p className="text-xs text-indigo-700 mt-0.5">
-                Logged in as Faculty with HOD Department Authority. You have access to all courses, study materials, and quizzes across all faculties in your department.
+                Logged in as Faculty with HOD Department Authority. You can see all courses, study materials, and
+                quizzes across the faculties in your department.
               </p>
             </div>
           </div>
@@ -370,106 +391,43 @@ export default function FacultyAcademicManagerView({ token, user }) {
         </div>
       )}
 
-      {/* ================= Subject Selector ================= */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {subjects.map((sub) => {
-            const isSelected = selectedSubject?.subject_id === sub.subject_id;
-            return (
-              <button
-                key={sub.subject_id}
-                type="button"
-                onClick={() => setSelectedSubject(sub)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-                  isSelected
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                <AcademicCapIcon className="h-4 w-4" />
-                <span>{sub.code || sub.subject_code}</span>
-                <span className="hidden sm:inline font-normal opacity-80">&bull; {sub.name}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setEditingTopic(null);
-            setTopicForm({ title: "", description: "", position: topics.length + 1 });
-            setShowTopicModal(true);
-          }}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition"
-        >
-          <PlusIcon className="h-4 w-4" /> Add Topic Unit
-        </button>
-      </div>
+      {/* The opened course header (only this course is shown) */}
+      {header}
 
       {/* ================= Main Management Grid ================= */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         {/* Left Topics List */}
-        <div className="lg:col-span-1 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
-            Course Topics ({topics.length})
-          </h3>
-          <div className="space-y-2">
-            {topics.map((t) => {
-              const isSelected = selectedTopic?.topic_id === t.topic_id;
-              return (
-                <div
-                  key={t.topic_id}
-                  onClick={() => setSelectedTopic(t)}
-                  className={`group relative rounded-2xl p-4 transition border cursor-pointer ${
-                    isSelected
-                      ? "bg-white border-emerald-600 shadow-sm ring-1 ring-emerald-600/30"
-                      : "bg-slate-50/70 border-slate-200 hover:bg-white text-slate-700"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-800">
-                        Unit {t.position}
-                      </span>
-                      <h4 className="text-xs font-bold text-slate-900 mt-0.5 line-clamp-2">{t.title}</h4>
-                    </div>
-
-                    <div className="opacity-0 group-hover:opacity-100 transition flex items-center space-x-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingTopic(t);
-                          setTopicForm({
-                            title: t.title,
-                            description: t.description || "",
-                            position: t.position,
-                          });
-                          setShowTopicModal(true);
-                        }}
-                        className="rounded p-1 text-slate-500 hover:bg-slate-200"
-                      >
-                        <PencilSquareIcon className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Delete topic "${t.title}" and all its materials?`)) {
-                            deleteTopic(token, t.topic_id).then(loadTopics);
-                          }
-                        }}
-                        className="rounded p-1 text-red-500 hover:bg-red-50"
-                      >
-                        <TrashIcon className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="lg:col-span-1">
+          <TopicList
+            topics={topics}
+            selectedId={selectedTopic?.topic_id}
+            onSelect={setSelectedTopic}
+            onEdit={(t) => {
+              setEditingTopic(t);
+              setTopicForm({ title: t.title, description: t.description || "", position: t.position });
+              setShowTopicModal(true);
+            }}
+            onDelete={(t) => {
+              if (confirm(`Delete topic "${t.title}" and all its materials?`)) {
+                deleteTopic(token, t.topic_id)
+                  .then(loadTopics)
+                  .catch((err) => setFeedback({ type: "error", message: err.message }));
+              }
+            }}
+            action={
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingTopic(null);
+                  setTopicForm({ title: "", description: "", position: topics.length + 1 });
+                  setShowTopicModal(true);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-800"
+              >
+                <PlusIcon className="h-3.5 w-3.5" /> Add
+              </button>
+            }
+          />
         </div>
 
         {/* Right Stage: Topic Workspace */}
@@ -477,71 +435,52 @@ export default function FacultyAcademicManagerView({ token, user }) {
           {selectedTopic ? (
             <div className="space-y-6">
               {/* Topic Header & Tab Bar */}
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-800">
-                      Unit {selectedTopic.position} Workspace
-                    </span>
-                    <h2 className="text-xl font-bold text-slate-900 mt-1">{selectedTopic.title}</h2>
-                    <p className="text-xs text-slate-500 mt-0.5 max-w-xl">{selectedTopic.description}</p>
-                  </div>
-
+              <TopicHeader
+                topic={selectedTopic}
+                aside={
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={handleOpenPreview}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
                     >
                       <EyeIcon className="h-4 w-4 text-emerald-700" /> Student Preview
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("questions")}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-slate-700 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition"
+                      onClick={() => {
+                        setActiveTab("questions");
+                        openNewQuestion();
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-800"
                     >
-                      <PlusIcon className="h-4 w-4" /> Add Questions
+                      <PlusIcon className="h-4 w-4" /> Add Question
                     </button>
                   </div>
-                </div>
-
-                {/* Sub-tabs: Materials | Quiz Settings | Question Bank */}
-                <div className="mt-6 flex border-b border-slate-200 space-x-6 text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("materials")}
-                    className={`pb-3 transition border-b-2 ${
-                      activeTab === "materials"
-                        ? "border-emerald-700 text-emerald-800"
-                        : "border-transparent text-slate-500 hover:text-slate-900"
-                    }`}
-                  >
-                    Study Materials ({materials.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("quiz")}
-                    className={`pb-3 transition border-b-2 ${
-                      activeTab === "quiz"
-                        ? "border-emerald-700 text-emerald-800"
-                        : "border-transparent text-slate-500 hover:text-slate-900"
-                    }`}
-                  >
-                    Quiz Settings & Schedule
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("questions")}
-                    className={`pb-3 transition border-b-2 ${
-                      activeTab === "questions"
-                        ? "border-emerald-700 text-emerald-800"
-                        : "border-transparent text-slate-500 hover:text-slate-900"
-                    }`}
-                  >
-                    Question Bank ({questions.length})
-                  </button>
-                </div>
-              </div>
+                }
+                footer={
+                  <div className="flex space-x-6 border-b border-slate-200 text-xs font-bold">
+                    {[
+                      ["materials", `Study Materials (${materials.length})`],
+                      ["quiz", "Quiz Settings & Schedule"],
+                      ["questions", `Question Bank (${questions.length})`],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setActiveTab(key)}
+                        className={`border-b-2 pb-3 transition ${
+                          activeTab === key
+                            ? "border-emerald-700 text-emerald-800"
+                            : "border-transparent text-slate-500 hover:text-slate-900"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              />
 
               {/* ================= TAB 1: Study Materials Manager ================= */}
               {activeTab === "materials" && (
@@ -551,15 +490,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setMaterialForm({
-                          title: "",
-                          type: "PDF",
-                          description: "",
-                          required_flag: true,
-                          status: "Published",
-                          file: null,
-                          notes_content: "",
-                        });
+                        setMaterialForm({ ...EMPTY_MATERIAL });
                         setShowMaterialModal(true);
                       }}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-black transition"
@@ -593,7 +524,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
                                 <Icon className="h-5 w-5" />
                               </div>
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <span
                                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                       mat.status === "Published"
@@ -613,6 +544,9 @@ export default function FacultyAcademicManagerView({ token, user }) {
                                     {mat.required_flag ? "Required" : "Optional"}
                                   </span>
                                   <span className="text-xs text-slate-400 font-mono">v{mat.version}</span>
+                                  {mat.uploaded_by && (
+                                    <span className="text-[11px] text-slate-400">by {mat.uploaded_by}</span>
+                                  )}
                                 </div>
                                 <h4 className="text-sm font-bold text-slate-900 mt-1">{mat.title}</h4>
                                 <p className="text-xs text-slate-500 line-clamp-1">{mat.description}</p>
@@ -642,7 +576,9 @@ export default function FacultyAcademicManagerView({ token, user }) {
                                 type="button"
                                 onClick={() => {
                                   if (confirm("Delete this material?")) {
-                                    deleteMaterial(token, mat.material_id).then(loadTopicDetails);
+                                    deleteMaterial(token, mat.material_id)
+                                      .then(loadTopicDetails)
+                                      .catch((err) => setFeedback({ type: "error", message: err.message }));
                                   }
                                 }}
                                 className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"
@@ -694,7 +630,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
                           className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-medium"
                         >
                           <option value="Draft">Draft (Invisible to students)</option>
-                          <option value="Published">Published (Accessible when unlocked)</option>
+                          <option value="Published">Published (Assigned to students)</option>
                         </select>
                       </div>
 
@@ -815,33 +751,18 @@ export default function FacultyAcademicManagerView({ token, user }) {
                         Add, edit, or remove questions drawn for the topic assessment.
                       </p>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingQuestion(null);
-                          setQuestionForm({
-                            type: "MCQ",
-                            text: "",
-                            options: ["", "", "", ""],
-                            answer: "",
-                            explanation: "",
-                            marks: 1.0,
-                            difficulty: "Medium",
-                            source_ref: "",
-                          });
-                          setShowQuestionModal(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 text-white px-4 py-2 text-xs font-bold hover:bg-emerald-800 transition shadow-xs"
-                      >
-                        <PlusIcon className="h-4 w-4" /> Add Manual Question
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={openNewQuestion}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 text-white px-4 py-2 text-xs font-bold hover:bg-emerald-800 transition shadow-xs"
+                    >
+                      <PlusIcon className="h-4 w-4" /> Add Manual Question
+                    </button>
                   </div>
 
                   {questions.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center text-xs text-slate-500">
-                      No questions in bank yet. Click "+ Add Manual Question" above to configure assessment questions.
+                      No questions in bank yet. Click "Add Manual Question" above to create assessment questions.
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -869,9 +790,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
                               >
                                 {q.difficulty}
                               </span>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                Marks: {q.marks || 1}
-                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">Marks: {q.marks || 1}</span>
                             </div>
 
                             <div className="flex items-center space-x-1">
@@ -882,7 +801,10 @@ export default function FacultyAcademicManagerView({ token, user }) {
                                   setQuestionForm({
                                     type: q.type,
                                     text: q.text,
-                                    options: Array.isArray(q.options) ? [...q.options] : ["", "", "", ""],
+                                    options:
+                                      Array.isArray(q.options) && q.options.length > 0
+                                        ? [...q.options]
+                                        : ["", "", "", ""],
                                     answer: q.answer,
                                     explanation: q.explanation || "",
                                     marks: q.marks || 1.0,
@@ -907,9 +829,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
                             </div>
                           </div>
 
-                          <h4 className="mt-2 text-sm font-bold text-slate-900 font-serif leading-snug">
-                            {q.text}
-                          </h4>
+                          <h4 className="mt-2 text-sm font-bold text-slate-900 font-serif leading-snug">{q.text}</h4>
 
                           <div className="mt-2 text-xs text-emerald-800 font-medium">
                             <span className="font-bold text-slate-500 mr-1">Correct Answer:</span>
@@ -1019,13 +939,13 @@ export default function FacultyAcademicManagerView({ token, user }) {
               <label className="text-xs font-bold text-slate-700">Resource Type</label>
               <select
                 value={materialForm.type}
-                onChange={(e) => setMaterialForm({ ...materialForm, type: e.target.value })}
+                onChange={(e) => setMaterialForm({ ...materialForm, type: e.target.value, file: null })}
                 className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-medium"
               >
                 <option value="PDF">PDF Document</option>
-                <option value="Slide">Presentation Slides (PPTX)</option>
-                <option value="Video">Video Link / MP4</option>
-                <option value="Notes">Rich Text Lecture Notes</option>
+                <option value="Slide">Presentation Slides (PPT / PPTX)</option>
+                <option value="Video">Video (MP4 or link)</option>
+                <option value="Notes">Lecture Notes (text)</option>
               </select>
             </div>
 
@@ -1042,10 +962,35 @@ export default function FacultyAcademicManagerView({ token, user }) {
             </div>
           </div>
 
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700">Description</label>
+            <input
+              type="text"
+              value={materialForm.description}
+              onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
+              placeholder="Short summary shown to students"
+              className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-medium"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700">Visibility</label>
+            <select
+              value={materialForm.status}
+              onChange={(e) => setMaterialForm({ ...materialForm, status: e.target.value })}
+              className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-medium"
+            >
+              <option value="Published">Published (students can see it)</option>
+              <option value="Draft">Draft (hidden from students)</option>
+            </select>
+          </div>
+
           {/* Drag & Drop Zone */}
           {materialForm.type !== "Notes" ? (
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700">File Attachment (PDF, PPTX, or Video)</label>
+              <label className="text-xs font-bold text-slate-700">
+                File Attachment ({ACCEPT[materialForm.type]})
+              </label>
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -1059,12 +1004,13 @@ export default function FacultyAcademicManagerView({ token, user }) {
               >
                 <CloudArrowUpIcon className="h-10 w-10 text-emerald-700" />
                 <p className="mt-2 text-xs font-bold text-slate-800">
-                  {materialForm.file ? materialForm.file.name : "Drag & drop files here, or click to browse"}
+                  {materialForm.file ? materialForm.file.name : "Drag & drop a file here, or click to browse"}
                 </p>
                 <p className="text-[10px] text-slate-500 mt-0.5">Maximum file size: 50MB</p>
                 <input
                   id="hiddenFileInput"
                   type="file"
+                  accept={ACCEPT[materialForm.type]}
                   className="hidden"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -1073,6 +1019,16 @@ export default function FacultyAcademicManagerView({ token, user }) {
                   }}
                 />
               </div>
+
+              {materialForm.type === "Video" && (
+                <input
+                  type="url"
+                  value={materialForm.video_url}
+                  onChange={(e) => setMaterialForm({ ...materialForm, video_url: e.target.value })}
+                  placeholder="or paste a video link (https://...)"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs"
+                />
+              )}
             </div>
           ) : (
             <div className="space-y-1">
@@ -1087,11 +1043,11 @@ export default function FacultyAcademicManagerView({ token, user }) {
             </div>
           )}
 
-          {/* Progress Bar when uploading */}
+          {/* Real upload progress */}
           {isUploading && (
             <div className="space-y-1">
               <div className="flex justify-between text-xs font-bold text-slate-600">
-                <span>Uploading & scanning file...</span>
+                <span>Uploading file...</span>
                 <span>{uploadProgress}%</span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
@@ -1115,15 +1071,15 @@ export default function FacultyAcademicManagerView({ token, user }) {
             <button
               type="submit"
               disabled={isUploading}
-              className="rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800"
+              className="rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 disabled:opacity-60"
             >
-              {isUploading ? "Uploading..." : "Save & Publish"}
+              {isUploading ? "Uploading..." : "Upload"}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* ================= MODAL: Version History Drawer ================= */}
+      {/* ================= MODAL: Version History ================= */}
       <Modal
         isOpen={Boolean(versionHistoryMat)}
         onClose={() => setVersionHistoryMat(null)}
@@ -1136,6 +1092,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
           </p>
 
           <div className="space-y-2">
+            {versionList.length === 0 && <p className="text-xs text-slate-400">No earlier versions recorded.</p>}
             {versionList.map((ver) => (
               <div key={ver.version_id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
                 <div className="flex items-center justify-between">
@@ -1165,7 +1122,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
               <label className="text-xs font-bold text-slate-700">Question Type</label>
               <select
                 value={questionForm.type}
-                onChange={(e) => setQuestionForm({ ...questionForm, type: e.target.value })}
+                onChange={(e) => setQuestionForm({ ...questionForm, type: e.target.value, answer: "" })}
                 className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-medium"
               >
                 <option value="MCQ">Multiple Choice (MCQ)</option>
@@ -1285,7 +1242,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
               rows={2}
               value={questionForm.explanation}
               onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
-              placeholder="Why this answer is correct (shown to students upon test submission)"
+              placeholder="Why this answer is correct (shown to students after they submit)"
               className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-medium"
             />
           </div>
@@ -1329,7 +1286,9 @@ export default function FacultyAcademicManagerView({ token, user }) {
         <div className="space-y-4">
           <div className="rounded-2xl bg-slate-900 p-4 text-white flex items-center justify-between text-xs">
             <div>
-              <span className="text-emerald-400 font-bold uppercase tracking-wider block">Candidate Viewport Preview</span>
+              <span className="text-emerald-400 font-bold uppercase tracking-wider block">
+                Candidate Viewport Preview
+              </span>
               <span className="text-slate-300 font-semibold">{previewData?.title}</span>
             </div>
             <div className="flex items-center gap-2 font-mono">
@@ -1339,7 +1298,7 @@ export default function FacultyAcademicManagerView({ token, user }) {
           </div>
 
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-            {previewData?.questions.map((q, idx) => (
+            {(previewData?.questions || []).map((q, idx) => (
               <div key={idx} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
                   Question {idx + 1} ({q.marks} mark)
@@ -1368,5 +1327,20 @@ export default function FacultyAcademicManagerView({ token, user }) {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function FacultyAcademicManagerView({ token, user }) {
+  return (
+    <CoursePicker
+      token={token}
+      heading={user?.is_hod ? "Department Courses" : "My Courses"}
+      subheading="Choose a course to manage its topics, study materials and quiz."
+      emptyText="No courses are assigned to you yet."
+    >
+      {(subject, header) => (
+        <FacultyCourseWorkspace key={subject.subject_id} token={token} user={user} subject={subject} header={header} />
+      )}
+    </CoursePicker>
   );
 }

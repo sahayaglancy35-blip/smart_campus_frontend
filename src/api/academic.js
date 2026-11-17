@@ -1,3 +1,4 @@
+
 import apiClient, { API_BASE_URL } from "./client";
 
 /**
@@ -63,27 +64,38 @@ export async function fetchTopicMaterials(token, topicId) {
 }
 
 /**
- * Upload / create study material (handles file attachments via FormData)
+ * Create a study material.
+ * Uses multipart FormData when a file is attached.
  */
 export async function createMaterial(token, topicId, materialData) {
   let body;
-  if (typeof FormData !== "undefined" && materialData instanceof FormData) {
+
+  if (
+    typeof FormData !== "undefined" &&
+    materialData instanceof FormData
+  ) {
     body = materialData;
   } else if (materialData.file) {
     const formData = new FormData();
-    formData.append("title", materialData.title);
+
+    formData.append("title", materialData.title || "");
     formData.append("type", materialData.type || "PDF");
     formData.append("description", materialData.description || "");
-    formData.append("required_flag", materialData.required_flag ? "1" : "0");
+    formData.append(
+      "required_flag",
+      materialData.required_flag ? "1" : "0"
+    );
     formData.append("status", materialData.status || "Published");
     formData.append("file", materialData.file);
+
     if (materialData.notes_content) {
       formData.append("notes_content", materialData.notes_content);
     }
+
     body = formData;
   } else {
     body = {
-      title: materialData.title,
+      title: materialData.title || "",
       type: materialData.type || "PDF",
       description: materialData.description || "",
       required_flag: materialData.required_flag ? 1 : 0,
@@ -98,6 +110,34 @@ export async function createMaterial(token, topicId, materialData) {
     token,
     body,
   });
+}
+
+/**
+ * Wrapper used by FacultyAcademicManagerView.
+ * The component sends content and url, while createMaterial
+ * expects notes_content and link_url.
+ */
+export async function uploadMaterial(
+  token,
+  topicId,
+  materialData,
+  onProgress
+) {
+  if (!materialData) {
+    throw new Error("Material information is missing.");
+  }
+
+  const normalizedData = {
+    ...materialData,
+    notes_content:
+      materialData.content || materialData.notes_content || "",
+    link_url:
+      materialData.url || materialData.link_url || "",
+  };
+
+  // Upload progress callback is accepted for compatibility.
+  // This implementation does not report live byte-level progress.
+  return createMaterial(token, topicId, normalizedData);
 }
 
 /**
@@ -122,9 +162,14 @@ export async function deleteMaterial(token, materialId) {
 }
 
 /**
- * Update material progress (student marking complete / watching video)
+ * Update material progress
  */
-export async function updateMaterialProgress(token, materialId, percent = 100, status = "COMPLETED") {
+export async function updateMaterialProgress(
+  token,
+  materialId,
+  percent = 100,
+  status = "COMPLETED"
+) {
   return apiClient(`/academic/materials/${materialId}/progress`, {
     method: "PUT",
     token,
@@ -133,10 +178,13 @@ export async function updateMaterialProgress(token, materialId, percent = 100, s
 }
 
 /**
- * Fetch material version history & details
+ * Fetch material version history and details
  */
 export async function fetchMaterialVersions(token, materialId) {
-  const res = await apiClient(`/academic/materials/${materialId}`, { token });
+  const res = await apiClient(`/academic/materials/${materialId}`, {
+    token,
+  });
+
   return {
     success: true,
     data: res?.data?.versions || [],
@@ -151,7 +199,7 @@ export async function fetchTopicQuiz(token, topicId) {
 }
 
 /**
- * Update topic quiz configuration (schedule, pass mark, time limit, publish)
+ * Update topic quiz configuration
  */
 export async function updateTopicQuiz(token, topicId, quizData) {
   return apiClient(`/academic/topics/${topicId}/quiz`, {
@@ -174,14 +222,14 @@ export async function updateTopicQuiz(token, topicId, quizData) {
 }
 
 /**
- * Fetch Questions for a Topic (Faculty Question Bank)
+ * Fetch Questions for a Topic
  */
 export async function fetchTopicQuestions(token, topicId) {
   return apiClient(`/academic/topics/${topicId}/questions`, { token });
 }
 
 /**
- * Create a new Question in Topic Question Bank (Manual Creation)
+ * Create a new Question in Topic Question Bank
  */
 export async function createQuestion(token, topicId, questionData) {
   return apiClient(`/academic/topics/${topicId}/questions`, {
@@ -227,11 +275,13 @@ export async function deleteQuestion(token, questionId) {
  * Preview Quiz (Faculty View)
  */
 export async function previewQuiz(token, topicId) {
-  return apiClient(`/academic/topics/${topicId}/quiz/preview`, { token });
+  return apiClient(`/academic/topics/${topicId}/quiz/preview`, {
+    token,
+  });
 }
 
 /**
- * Start or resume a Student Quiz Attempt (connected to backend)
+ * Start or resume a Student Quiz Attempt
  */
 export async function startQuizAttempt(token, quizId) {
   return apiClient(`/academic/quizzes/${quizId}/attempts`, {
@@ -252,9 +302,13 @@ export async function autosaveAttemptAnswers(token, attemptId, answers) {
 }
 
 /**
- * Submit quiz attempt, score objective questions, return results & explanations
+ * Submit quiz attempt
  */
-export async function submitQuizAttempt(token, attemptId, payload = {}) {
+export async function submitQuizAttempt(
+  token,
+  attemptId,
+  payload = {}
+) {
   return apiClient(`/academic/attempts/${attemptId}/submit`, {
     method: "POST",
     token,
@@ -273,13 +327,19 @@ export async function getAttemptById(token, attemptId) {
  * Fetch student's latest attempt for a quiz
  */
 export async function fetchMyAttemptResult(token, quizId) {
-  return apiClient(`/academic/quizzes/${quizId}/my-attempt`, { token });
+  return apiClient(`/academic/quizzes/${quizId}/my-attempt`, {
+    token,
+  });
 }
 
 /**
  * Report anti-cheat violation during active sitting
  */
-export async function reportQuizViolation(token, attemptId, violationReason = "Integrity violation") {
+export async function reportQuizViolation(
+  token,
+  attemptId,
+  violationReason = "Integrity violation"
+) {
   return apiClient(`/academic/attempts/${attemptId}/violation`, {
     method: "POST",
     token,
@@ -288,32 +348,43 @@ export async function reportQuizViolation(token, attemptId, violationReason = "I
 }
 
 /**
- * Toggle student cheating flag (faculty action)
+ * Toggle student cheating flag
  */
-export async function toggleCheatingFlag(token, attemptId, isCheating, reason = "") {
+export async function toggleCheatingFlag(
+  token,
+  attemptId,
+  isCheating,
+  reason = ""
+) {
   return apiClient(`/academic/attempts/${attemptId}/score-correction`, {
     method: "POST",
     token,
     body: {
       new_score: isCheating ? 0 : null,
       reason_code: isCheating ? "CHEATING_FLAG" : "UNFLAG",
-      justification: reason || (isCheating ? "Flagged for cheating" : "Flag removed"),
+      justification:
+        reason ||
+        (isCheating ? "Flagged for cheating" : "Flag removed"),
     },
   });
 }
 
 /**
- * Faculty Quiz Analytics & Summary
+ * Faculty Quiz Analytics and Summary
  */
 export async function fetchSubjectResults(token, subjectId) {
-  return apiClient(`/academic/subjects/${subjectId}/results`, { token });
+  return apiClient(`/academic/subjects/${subjectId}/results`, {
+    token,
+  });
 }
 
 /**
  * Export results CSV directly from backend
  */
 export async function exportResultsCsv(token, subjectId) {
-  const downloadUrl = `${API_BASE_URL}/academic/subjects/${subjectId}/results/export`;
+  const downloadUrl =
+    `${API_BASE_URL}/academic/subjects/${subjectId}/results/export`;
+
   const response = await fetch(downloadUrl, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -327,19 +398,31 @@ export async function exportResultsCsv(token, subjectId) {
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+
   link.href = url;
-  link.setAttribute("download", `subject_${subjectId}_quiz_results.csv`);
+  link.setAttribute(
+    "download",
+    `subject_${subjectId}_quiz_results.csv`
+  );
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+
   return { success: true };
 }
 
 /**
- * Faculty Action: Manual Score Correction with audit justification
+ * Faculty Action: Manual Score Correction
  */
-export async function correctAttemptScore(token, attemptId, newScore, reasonCode, justification) {
+export async function correctAttemptScore(
+  token,
+  attemptId,
+  newScore,
+  reasonCode,
+  justification
+) {
   return apiClient(`/academic/attempts/${attemptId}/score-correction`, {
     method: "POST",
     token,
@@ -353,14 +436,27 @@ export async function correctAttemptScore(token, attemptId, newScore, reasonCode
 
 /**
  * Admin Action: College-wide Academic Oversight
- * Retrieves all faculty quizzes, study materials, and student activities college-wide
  */
-export async function fetchAdminAcademicOversight(token, filters = {}) {
+export async function fetchAdminAcademicOversight(
+  token,
+  filters = {}
+) {
   const query = new URLSearchParams();
-  if (filters.department_id) query.append("department_id", filters.department_id);
-  if (filters.search) query.append("search", filters.search);
+
+  if (filters.department_id) {
+    query.append("department_id", filters.department_id);
+  }
+
+  if (filters.search) {
+    query.append("search", filters.search);
+  }
+
   const qs = query.toString();
-  return apiClient(`/academic/admin/oversight${qs ? `?${qs}` : ""}`, { token });
+
+  return apiClient(
+    `/academic/admin/oversight${qs ? `?${qs}` : ""}`,
+    { token }
+  );
 }
 
 export { API_BASE_URL };
