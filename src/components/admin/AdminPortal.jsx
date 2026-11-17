@@ -1,12 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import AdminLayout from "./layout/AdminLayout";
-import AdminDashboardOverview from "./AdminDashboardOverview";
-import StudentManagementView from "./StudentManagementView";
-import FacultyManagementView from "./FacultyManagementView";
-import DepartmentManagementView from "./DepartmentManagementView";
-import InfrastructureManagementView from "./InfrastructureManagementView";
-import AcademicsManagementView from "./AcademicsManagementView";
-import AttendanceSessionsView from "./AttendanceSessionsView";
+import LoadingSpinner from "../common/LoadingSpinner";
+
+const AdminDashboardOverview = lazy(() => import("./AdminDashboardOverview"));
+const StudentManagementView = lazy(() => import("./StudentManagementView"));
+const FacultyManagementView = lazy(() => import("./FacultyManagementView"));
+const DepartmentManagementView = lazy(() => import("./DepartmentManagementView"));
+const InfrastructureManagementView = lazy(() => import("./InfrastructureManagementView"));
+const AcademicsManagementView = lazy(() => import("./AcademicsManagementView"));
+const AttendanceSessionsView = lazy(() => import("./AttendanceSessionsView"));
+const SubjectDiscoveryDashboard = lazy(() => import("../academic/SubjectDiscoveryDashboard"));
+const SubjectWorkspaceView = lazy(() => import("../academic/SubjectWorkspaceView"));
 
 const ADMIN_ROUTE_METADATA = {
   "/admin": {
@@ -37,6 +41,10 @@ const ADMIN_ROUTE_METADATA = {
     title: "Academic Offerings & Timetable Management",
     subtitle: "Manage constituent schools, programs, batches, course offerings, and section schedules.",
   },
+  "/admin/academic/subjects": {
+    title: "Courseware & Subject Workspace",
+    subtitle: "University-wide course discovery, syllabus oversight, and teaching staff management.",
+  },
   "/admin/attendance": {
     title: "Attendance Session Management",
     subtitle: "Oversee institutional class attendance sessions and roster records.",
@@ -52,6 +60,8 @@ const KEY_TO_ROUTE = {
   infrastructure: "/admin/classrooms",
   classrooms: "/admin/classrooms",
   academics: "/admin/academics",
+  subjects: "/admin/academic/subjects",
+  courseware: "/admin/academic/subjects",
   sessions: "/admin/attendance",
   attendance: "/admin/attendance",
 };
@@ -77,9 +87,27 @@ export function AdminPortal({ user, token, currentPath, onNavigate, onLogout }) 
   );
 
   const normalizedPath = currentPath === "/admin" ? "/admin/dashboard" : currentPath;
-  const meta = ADMIN_ROUTE_METADATA[normalizedPath] || ADMIN_ROUTE_METADATA["/admin/dashboard"];
+  const meta =
+    ADMIN_ROUTE_METADATA[normalizedPath] ||
+    (normalizedPath.startsWith("/admin/academic/subjects")
+      ? ADMIN_ROUTE_METADATA["/admin/academic/subjects"]
+      : ADMIN_ROUTE_METADATA["/admin/dashboard"]);
 
   const renderModule = () => {
+    if (normalizedPath.startsWith("/admin/academic/subjects/")) {
+      const match = normalizedPath.match(/\/admin\/academic\/subjects\/(\d+)/);
+      if (match) {
+        return (
+          <SubjectWorkspaceView
+            token={token}
+            user={user}
+            subjectId={parseInt(match[1], 10)}
+            onBack={() => onNavigate("/admin/academic/subjects")}
+          />
+        );
+      }
+    }
+
     switch (normalizedPath) {
       case "/admin/dashboard":
         return (
@@ -102,6 +130,14 @@ export function AdminPortal({ user, token, currentPath, onNavigate, onLogout }) 
           <AcademicsManagementView
             token={token}
             refreshTrigger={refreshTrigger}
+          />
+        );
+      case "/admin/academic/subjects":
+        return (
+          <SubjectDiscoveryDashboard
+            token={token}
+            user={user}
+            onSelectSubject={(sub) => onNavigate(`/admin/academic/subjects/${sub.subject_id}`)}
           />
         );
       case "/admin/attendance":
@@ -143,7 +179,11 @@ export function AdminPortal({ user, token, currentPath, onNavigate, onLogout }) 
       title={meta.title}
       subtitle={meta.subtitle}
     >
-      <div key={normalizedPath}>{renderModule()}</div>
+      <div key={normalizedPath}>
+        <Suspense fallback={<LoadingSpinner message="Loading administration console..." />}>
+          {renderModule()}
+        </Suspense>
+      </div>
     </AdminLayout>
   );
 }

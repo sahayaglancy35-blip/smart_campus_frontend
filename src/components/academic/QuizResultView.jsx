@@ -5,7 +5,6 @@ import {
   AcademicCapIcon,
   ArrowPathIcon,
   ArrowLeftIcon,
-  BookOpenIcon,
   LightBulbIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
@@ -26,9 +25,24 @@ export default function QuizResultView({
     result = "PENDING",
     breakdown = [],
     weak_areas = [],
+    remediation = null,
   } = resultData;
 
-  const isPassed = result === "PASSED" || percentage >= pass_mark;
+  const isPassed = result === "PASSED" || result === "PASS" || percentage >= pass_mark;
+
+  // Map weak areas from backend remediation if available
+  const effectiveWeakAreas =
+    weak_areas && weak_areas.length > 0
+      ? weak_areas
+      : remediation?.recommended_materials && remediation.recommended_materials.length > 0
+      ? [
+          {
+            topic: "Recommended Study Review",
+            missed_count: remediation.missed_questions_count || 0,
+            recommended_materials: remediation.recommended_materials,
+          },
+        ]
+      : [];
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -118,7 +132,7 @@ export default function QuizResultView({
       </div>
 
       {/* ================= Weak Areas & Recommended Materials ================= */}
-      {weak_areas && weak_areas.length > 0 && (
+      {effectiveWeakAreas && effectiveWeakAreas.length > 0 && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/70 p-6 shadow-xs">
           <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
             <LightBulbIcon className="h-5 w-5 text-amber-600" />
@@ -130,7 +144,7 @@ export default function QuizResultView({
           </p>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {weak_areas.map((area, idx) => (
+            {effectiveWeakAreas.map((area, idx) => (
               <div key={idx} className="rounded-2xl border border-amber-200 bg-white p-4 shadow-2xs">
                 <span className="text-xs font-bold text-amber-800 uppercase tracking-wider font-mono">
                   Review Topic

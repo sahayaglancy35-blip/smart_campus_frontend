@@ -86,10 +86,23 @@ export function Sidebar({
     { key: "sessions", label: "Attendance Sessions", icon: ClipboardDocumentCheckIcon },
   ];
 
+  const isHOD = Boolean(
+    user?.is_hod ||
+      /head\s+of\s+department|\bhod/i.test(user?.designation || "") ||
+      /head\s+of\s+department|\bhod/i.test(user?.designation_name || "") ||
+      /head\s+of\s+department|\bhod/i.test(user?.in_charge_class || "") ||
+      /head\s+of\s+department|\bhod/i.test(user?.name || "") ||
+      /head\s+of\s+department|\bhod/i.test(user?.registerNo || "")
+  );
+
   const facultyNavItems = [
     { key: "faculty-dashboard", label: "Faculty Dashboard", icon: Squares2X2Icon },
-    { key: "faculty-academics", label: "Materials & Quiz Builder", icon: BookOpenIcon },
-    { key: "faculty-quiz-analytics", label: "Quiz Results & Integrity", icon: ShieldExclamationIcon },
+    {
+      key: "faculty-academics",
+      label: isHOD ? "Courseware & HOD Subjects" : "Courseware & Quiz Builder",
+      icon: BookOpenIcon,
+    },
+    { key: "faculty-quiz-analytics", label: "Assessment Analytics", icon: ShieldExclamationIcon },
     { key: "timetable", label: "My Schedule", icon: CalendarDaysIcon },
     { key: "sessions", label: "Class Sessions", icon: ClipboardDocumentCheckIcon },
     { key: "faculty-attendance", label: "My Attendance Logs", icon: ClockIcon },

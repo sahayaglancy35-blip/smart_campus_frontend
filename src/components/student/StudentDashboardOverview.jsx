@@ -31,7 +31,7 @@ export function StudentDashboardOverview({ token, user, onNavigate }) {
         setDashboardData(result?.data || null);
       } catch (err) {
         if (err.name !== "AbortError") {
-          console.warn("Unable to load full dashboard payload, using fallback:", err.message);
+          setError(err.message || "Failed to load student dashboard metrics.");
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -47,43 +47,43 @@ export function StudentDashboardOverview({ token, user, onNavigate }) {
   const quickLinks = [
     {
       key: "academic-hub",
-      label: "Study Materials & Quizzes",
-      description: "Topic courseware, in-page viewers & unit quizzes",
+      label: "Courseware & Quizzes",
+      description: "Unit courseware and assessments",
       icon: BookOpenIcon,
       color: "from-emerald-800 to-green-900",
     },
     {
       key: "timetable",
       label: "Today's Timetable",
-      description: "View daily schedule & classrooms",
+      description: "Class schedule and lecture halls",
       icon: CalendarDaysIcon,
       color: "from-emerald-700 to-green-800",
     },
     {
       key: "summary",
       label: "Attendance Summary",
-      description: "Track overall & subject percentages",
+      description: "Course-wise attendance compliance",
       icon: ChartPieIcon,
       color: "from-green-700 to-emerald-900",
     },
     {
       key: "courses",
-      label: "My Registered Courses",
-      description: "View active courses & total credits",
+      label: "Registered Courses",
+      description: "Active courses and academic credits",
       icon: AcademicCapIcon,
       color: "from-teal-700 to-green-900",
     },
     {
       key: "attendance-logs",
       label: "Attendance History",
-      description: "Session-by-session verification logs",
+      description: "Session attendance records",
       icon: ClockIcon,
       color: "from-green-800 to-emerald-950",
     },
     {
       key: "absent-details",
       label: "Absent Records",
-      description: "Review missed lectures & absences",
+      description: "Missed classes and warnings",
       icon: UserMinusIcon,
       color: "from-emerald-800 to-teal-900",
     },

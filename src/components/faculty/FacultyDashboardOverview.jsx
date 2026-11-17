@@ -51,15 +51,15 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
   const quickLinks = [
     {
       key: "faculty-academics",
-      label: "Materials & Quiz Builder",
-      description: "Upload lecture slides/PDFs, configure schedules & AI questions",
+      label: "Courseware & Quiz Builder",
+      description: "Manage curriculum courseware, question banks, and quizzes",
       icon: BookOpenIcon,
       color: "from-emerald-800 to-green-900",
     },
     {
       key: "faculty-quiz-analytics",
-      label: "Quiz Results & Integrity",
-      description: "Track candidate scores, item accuracy & cheat detection",
+      label: "Assessment Analytics",
+      description: "Candidate scores, item accuracy, and integrity monitoring",
       icon: ShieldExclamationIcon,
       color: "from-teal-800 to-emerald-950",
     },
@@ -73,14 +73,14 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
     {
       key: "timetable",
       label: "Teaching Schedule",
-      description: "Check your assigned lecture slots and classrooms",
+      description: "Assigned lecture slots and classroom venues",
       icon: CalendarDaysIcon,
       color: "from-emerald-700 to-teal-900",
     },
     {
       key: "faculty-attendance",
       label: "Attendance Audit Logs",
-      description: "Review conducted lectures and historical session attendance",
+      description: "Conducted lecture history and session verification",
       icon: ClockIcon,
       color: "from-teal-800 to-green-950",
     },

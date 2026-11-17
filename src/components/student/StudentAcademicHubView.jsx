@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   fetchSubjects,
   fetchSubjectTopics,
   fetchTopicMaterials,
   fetchTopicQuiz,
   fetchMyAttemptResult,
+  fetchQuizStatus,
   updateMaterialProgress,
   startQuizAttempt,
 } from "../../api/academic";
@@ -26,17 +27,20 @@ import {
   ChevronRightIcon,
   ShieldExclamationIcon,
   ExclamationCircleIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
 const STATUS_LABEL = {
   OPEN: "Quiz Unlocked & Open",
+  IN_PROGRESS: "Sitting In Progress",
   LOCKED: "Quiz Locked",
   COMPLETED: "Quiz Completed",
-  MISSED: "Quiz Missed",
+  MISSED: "Quiz Window Closed",
   DISQUALIFIED: "Disqualified",
+  HIDDEN: "Hidden",
 };
 
-export default function StudentAcademicHubView({ token, user, initialSubjectId = null }) {
+export default function StudentAcademicHubView({ token, initialSubjectId = null }) {
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [topics, setTopics] = useState([]);
@@ -44,6 +48,7 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
   const [materials, setMaterials] = useState([]);
   const [quiz, setQuiz] = useState(null);
   const [myAttempt, setMyAttempt] = useState(null);
+  const [serverQuizStatus, setServerQuizStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -53,142 +58,174 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
   const [resultData, setResultData] = useState(null);
   const [integrityAlert, setIntegrityAlert] = useState("");
 
-  // Load subjects (server returns only the subjects this student is enrolled in)
-  const loadSubjects = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await fetchSubjects(token);
-      const subs = Array.isArray(res?.data) ? res.data : [];
-      setSubjects(subs);
+  // Reactive refresh triggers
+  const [refreshTopicsKey] = useState(0);
+  const [refreshDetailsKey, setRefreshDetailsKey] = useState(0);
 
-      if (subs.length > 0) {
-        const found = initialSubjectId
-          ? subs.find((s) => String(s.subject_id) === String(initialSubjectId)) || subs[0]
-          : subs[0];
-        setSelectedSubject(found);
+  const reloadTopicDetails = useCallback(() => setRefreshDetailsKey((k) => k + 1), []);
+
+  // -------------------------------------------------------------
+  // Data Fetching: Subjects on Mount
+  // -------------------------------------------------------------
+  useEffect(() => {
+    let active = true;
+    async function loadInitialSubjects() {
+      try {
+        const res = await fetchSubjects(token);
+        if (!active) return;
+        const subs = Array.isArray(res?.data) ? res.data : [];
+        setSubjects(subs);
+
+        if (subs.length > 0) {
+          const found = initialSubjectId
+            ? subs.find((s) => String(s.subject_id) === String(initialSubjectId)) || subs[0]
+            : subs[0];
+          setSelectedSubject(found);
+        }
+      } catch (err) {
+        if (active) setError(err.message || "Failed to load academic subjects");
+      } finally {
+        if (active) setLoading(false);
       }
-    } catch (err) {
-      setError(err.message || "Failed to load academic subjects");
-    } finally {
-      setLoading(false);
     }
+    loadInitialSubjects();
+    return () => {
+      active = false;
+    };
   }, [token, initialSubjectId]);
 
+  // -------------------------------------------------------------
+  // Data Fetching: Topics for Selected Subject
+  // -------------------------------------------------------------
   useEffect(() => {
-    loadSubjects();
-  }, [loadSubjects]);
+    if (!selectedSubject?.subject_id) return;
+    let active = true;
+    fetchSubjectTopics(token, selectedSubject.subject_id)
+      .then((res) => {
+        if (!active) return;
+        const topicList = Array.isArray(res?.data) ? res.data : [];
+        setTopics(topicList);
+        if (topicList.length > 0) {
+          setSelectedTopic(topicList[0]);
+        } else {
+          setSelectedTopic(null);
+          setMaterials([]);
+          setQuiz(null);
+          setMyAttempt(null);
+          setServerQuizStatus(null);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load topics");
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, selectedSubject, refreshTopicsKey]);
 
-  // Load topics when the selected subject changes
-  const loadTopics = useCallback(async () => {
-    if (!selectedSubject) return;
-    try {
-      const res = await fetchSubjectTopics(token, selectedSubject.subject_id);
-      const topicList = Array.isArray(res?.data) ? res.data : [];
-      setTopics(topicList);
-      if (topicList.length > 0) {
-        setSelectedTopic(topicList[0]);
-      } else {
-        setSelectedTopic(null);
-        setMaterials([]);
-        setQuiz(null);
-        setMyAttempt(null);
-      }
-    } catch (err) {
-      setError(err.message || "Failed to load topics");
-    }
-  }, [token, selectedSubject]);
-
+  // -------------------------------------------------------------
+  // Data Fetching: Topic Materials, Quiz, and Authoritative Unlock Status
+  // -------------------------------------------------------------
   useEffect(() => {
-    loadTopics();
-  }, [loadTopics]);
+    if (!selectedTopic?.topic_id) return;
+    let active = true;
 
-  // Load materials, quiz and the student's own attempt when the topic changes
-  const loadTopicDetails = useCallback(async () => {
-    if (!selectedTopic) return;
-    try {
-      const [matRes, quizRes] = await Promise.all([
-        fetchTopicMaterials(token, selectedTopic.topic_id),
-        fetchTopicQuiz(token, selectedTopic.topic_id),
-      ]);
-      setMaterials(Array.isArray(matRes?.data) ? matRes.data : []);
-      const q = quizRes?.data || null;
-      setQuiz(q);
+    Promise.all([
+      fetchTopicMaterials(token, selectedTopic.topic_id),
+      fetchTopicQuiz(token, selectedTopic.topic_id),
+    ])
+      .then(async ([matRes, quizRes]) => {
+        if (!active) return;
+        const mats = Array.isArray(matRes?.data) ? matRes.data : [];
+        setMaterials(mats);
 
-      if (q && q.status === "Published") {
-        const a = await fetchMyAttemptResult(token, q.quiz_id);
-        setMyAttempt(a?.data || null);
-      } else {
-        setMyAttempt(null);
-      }
-    } catch (err) {
-      setError(err.message || "Failed to load topic details");
-    }
-  }, [token, selectedTopic]);
+        const q = quizRes?.data || null;
+        setQuiz(q);
 
-  useEffect(() => {
-    loadTopicDetails();
-  }, [loadTopicDetails]);
+        if (q && q.status === "Published") {
+          try {
+            const [attRes, statusRes] = await Promise.all([
+              fetchMyAttemptResult(token, q.quiz_id).catch(() => null),
+              fetchQuizStatus(token, q.quiz_id).catch(() => null),
+            ]);
+            if (!active) return;
+            setMyAttempt(attRes?.data || null);
+            setServerQuizStatus(statusRes?.data || null);
+          } catch (e) {
+            console.warn("Could not load attempt/status details:", e.message);
+          }
+        } else {
+          setMyAttempt(null);
+          setServerQuizStatus(null);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load topic details");
+      });
 
-  // Material completion: save on the server, then reload so the server stays the source of truth
+    return () => {
+      active = false;
+    };
+  }, [token, selectedTopic, refreshDetailsKey]);
+
+  // Material completion: save on the server, then reload so the server stays source of truth
   const handleMaterialComplete = async (materialId, percent = 100) => {
     await updateMaterialProgress(token, materialId, percent);
-    await loadTopicDetails();
+    reloadTopicDetails();
   };
 
-  // Quiz card state
-  const quizUnlockStatus = useMemo(() => {
-    // Hidden unless the faculty member has published (assigned) the quiz for this topic
-    if (!quiz || quiz.status !== "Published" || !selectedTopic?.quiz_enabled) {
-      return { status: "HIDDEN" };
-    }
+  // -------------------------------------------------------------
+  // Authoritative Server-Driven Quiz Status Evaluation
+  // -------------------------------------------------------------
+  let computedQuizStatus = { status: "HIDDEN", reason: "" };
 
-    // Already attended: show the score, or the disqualification
-    if (myAttempt) {
-      const bad = myAttempt.status === "CANCELLED" || myAttempt.is_flagged_cheating;
-      return bad
-        ? {
-            status: "DISQUALIFIED",
-            reason: "Your attempt was cancelled for leaving the quiz screen. You cannot retake this quiz.",
-          }
-        : {
-            status: "COMPLETED",
-            reason: `Submitted. Score ${myAttempt.score} / ${myAttempt.max_score} (${myAttempt.percentage}%)`,
-          };
-    }
-
-    const now = Date.now();
-    if (quiz.open_at && now < new Date(quiz.open_at).getTime()) {
-      return { status: "LOCKED", reason: `Opens on ${fmtDateTime(quiz.open_at)}` };
-    }
-    if (quiz.close_at && now > new Date(quiz.close_at).getTime()) {
-      return {
-        status: "MISSED",
-        reason: `You did not attend within the scheduled time (closed ${fmtDateTime(quiz.close_at)}). It cannot be attempted now.`,
+  if (quiz && quiz.status === "Published" && selectedTopic?.quiz_enabled) {
+    if (myAttempt && (myAttempt.status === "CANCELLED" || myAttempt.is_flagged_cheating)) {
+      computedQuizStatus = {
+        status: "DISQUALIFIED",
+        reason:
+          "Your attempt was terminated for leaving the quiz screen or an integrity violation. Further retakes are prohibited.",
       };
-    }
-
-    const missing = materials.filter(
-      (m) => m.status === "Published" && m.required_flag && (m.user_progress?.percent ?? 0) < 100
-    );
-    if (missing.length > 0) {
-      return {
-        status: "LOCKED",
-        reason: `${missing.length} Required study material${missing.length === 1 ? "" : "s"} left to complete`,
-        missing,
+    } else if (serverQuizStatus?.active_attempt) {
+      const remainingMins = Math.floor(serverQuizStatus.active_attempt.remaining_seconds / 60);
+      const remainingSecs = serverQuizStatus.active_attempt.remaining_seconds % 60;
+      computedQuizStatus = {
+        status: "IN_PROGRESS",
+        reason: `Active exam sitting in progress! Time remaining: ${remainingMins}m ${remainingSecs}s`,
+        active_attempt: serverQuizStatus.active_attempt,
       };
+    } else if (serverQuizStatus?.is_unlocked) {
+      computedQuizStatus = {
+        status: "OPEN",
+        reason: `All prerequisites met. Ready for assessment sitting. Remaining attempts: ${serverQuizStatus.remaining_attempts}`,
+      };
+    } else if (serverQuizStatus) {
+      if (serverQuizStatus.remaining_attempts === 0 && myAttempt) {
+        computedQuizStatus = {
+          status: "COMPLETED",
+          reason: `Assessment completed. Score: ${myAttempt.score} / ${myAttempt.max_score} (${myAttempt.percentage}%)`,
+        };
+      } else {
+        const lockMsg =
+          serverQuizStatus.lock_reasons && serverQuizStatus.lock_reasons.length > 0
+            ? serverQuizStatus.lock_reasons[0]
+            : "Quiz is currently locked.";
+        const isClosed = !serverQuizStatus.is_window_open && lockMsg.toLowerCase().includes("closed");
+        computedQuizStatus = {
+          status: isClosed ? "MISSED" : "LOCKED",
+          reason: lockMsg,
+          missing: serverQuizStatus.incomplete_required_materials || [],
+        };
+      }
     }
+  }
 
-    return { status: "OPEN", reason: "All prerequisites met. Ready for assessment sitting." };
-  }, [quiz, selectedTopic, materials, myAttempt]);
-
-  // Start quiz attempt (the server re-checks every rule)
+  // Start / Resume Quiz Attempt
   const handleStartQuiz = async () => {
     if (!quiz) return;
     try {
       setError("");
       setIntegrityAlert("");
-      // Must be called inside the click so the browser allows full screen
       document.documentElement.requestFullscreen?.().catch(() => {});
       const res = await startQuizAttempt(token, quiz.quiz_id);
       if (res?.success && res.data) {
@@ -202,7 +239,7 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
       } else {
         setError(err.message || "Failed to start quiz attempt");
       }
-      loadTopicDetails();
+      reloadTopicDetails();
     }
   };
 
@@ -215,17 +252,16 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
     return (
       <QuizAttemptView
         token={token}
-        user={user}
         attemptData={activeAttempt}
         onFinished={(data) => {
           setActiveAttempt(null);
           setResultData(data);
-          loadTopicDetails();
+          reloadTopicDetails();
         }}
         onViolated={(reason) => {
           setActiveAttempt(null);
           setIntegrityAlert(`Academic Integrity Violation: ${reason}. Quiz attempt has been terminated.`);
-          loadTopicDetails();
+          reloadTopicDetails();
         }}
       />
     );
@@ -237,7 +273,7 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
       <QuizResultView
         resultData={resultData}
         onReturnToTopic={() => setResultData(null)}
-        onRetry={resultData?.attempts_left > 0 ? handleStartQuiz : null}
+        onRetry={resultData?.remediation?.retry_allowed ? handleStartQuiz : null}
         onOpenMaterial={(mat) => {
           setResultData(null);
           setViewingMaterial(mat);
@@ -249,7 +285,7 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
   const completedCount = materials.filter((m) => m.user_progress?.status === "COMPLETED").length;
   const totalCount = materials.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const qStatus = quizUnlockStatus.status;
+  const qStatus = computedQuizStatus.status;
 
   return (
     <div className="space-y-7">
@@ -461,11 +497,11 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                 )}
               </div>
 
-              {/* End-of-Topic Quiz Card: only when the faculty has published (assigned) the quiz */}
+              {/* End-of-Topic Quiz Card: Authoritative State Engine */}
               {qStatus !== "HIDDEN" && (
                 <div
                   className={`rounded-3xl border p-6 shadow-sm transition ${
-                    qStatus === "OPEN"
+                    qStatus === "OPEN" || qStatus === "IN_PROGRESS"
                       ? "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-green-50"
                       : qStatus === "DISQUALIFIED"
                       ? "border-red-300 bg-red-50/60"
@@ -476,14 +512,14 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                     <div className="flex items-start gap-4">
                       <div
                         className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ${
-                          qStatus === "OPEN" || qStatus === "COMPLETED"
+                          qStatus === "OPEN" || qStatus === "IN_PROGRESS" || qStatus === "COMPLETED"
                             ? "bg-emerald-600 text-white"
                             : qStatus === "DISQUALIFIED"
                             ? "bg-red-600 text-white"
                             : "bg-slate-200 text-slate-500"
                         }`}
                       >
-                        {qStatus === "OPEN" || qStatus === "COMPLETED" ? (
+                        {qStatus === "OPEN" || qStatus === "IN_PROGRESS" || qStatus === "COMPLETED" ? (
                           <AcademicCapIcon className="h-7 w-7" />
                         ) : qStatus === "DISQUALIFIED" ? (
                           <ShieldExclamationIcon className="h-6 w-6" />
@@ -496,7 +532,7 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                         <div className="flex flex-wrap items-center gap-2">
                           <span
                             className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                              qStatus === "OPEN" || qStatus === "COMPLETED"
+                              qStatus === "OPEN" || qStatus === "IN_PROGRESS" || qStatus === "COMPLETED"
                                 ? "bg-emerald-100 text-emerald-800"
                                 : qStatus === "DISQUALIFIED"
                                 ? "bg-red-100 text-red-800"
@@ -516,15 +552,20 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                         </p>
                         {(quiz.open_at || quiz.close_at) && (
                           <p className="mt-1 text-[11px] text-slate-500">
-                            Scheduled: {fmtDateTime(quiz.open_at)} to {fmtDateTime(quiz.close_at)}
+                            Scheduled Window: {fmtDateTime(quiz.open_at)} to {fmtDateTime(quiz.close_at)}
                           </p>
                         )}
 
-                        {/* Reason / status line */}
+                        {/* Reason / diagnostics line */}
                         <div className="mt-2 text-xs">
                           {qStatus === "OPEN" ? (
                             <span className="font-semibold text-emerald-700">
-                              ✓ Prerequisites completed. You may begin your sitting. You can attempt it only once.
+                              ✓ Prerequisites completed. You may begin your sitting.
+                            </span>
+                          ) : qStatus === "IN_PROGRESS" ? (
+                            <span className="font-semibold text-indigo-700 flex items-center gap-1">
+                              <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                              {computedQuizStatus.reason}
                             </span>
                           ) : (
                             <span
@@ -537,14 +578,28 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                               }`}
                             >
                               <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
-                              {quizUnlockStatus.reason}
+                              {computedQuizStatus.reason}
                             </span>
                           )}
                         </div>
+
+                        {/* Incomplete Required Materials Alert */}
+                        {computedQuizStatus.missing && computedQuizStatus.missing.length > 0 && (
+                          <div className="mt-2 text-[11px] text-amber-900 bg-amber-100/70 p-2.5 rounded-xl border border-amber-300/80">
+                            <span className="font-bold">Required items to complete:</span>
+                            <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
+                              {computedQuizStatus.missing.map((m) => (
+                                <li key={m.material_id}>
+                                  {m.title} ({m.type})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Action */}
+                    {/* Action Button */}
                     <div className="sm:self-center">
                       {qStatus === "OPEN" ? (
                         <button
@@ -555,18 +610,27 @@ export default function StudentAcademicHubView({ token, user, initialSubjectId =
                           <AcademicCapIcon className="h-4 w-4" />
                           Start Quiz Sitting
                         </button>
+                      ) : qStatus === "IN_PROGRESS" ? (
+                        <button
+                          type="button"
+                          onClick={handleStartQuiz}
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-700 px-6 py-3 text-xs font-bold text-white shadow-md hover:bg-indigo-800 transition animate-pulse"
+                        >
+                          <ArrowPathIcon className="h-4 w-4" />
+                          Resume Sitting
+                        </button>
                       ) : qStatus === "COMPLETED" ? (
                         <button
                           type="button"
                           onClick={() => setResultData(myAttempt)}
                           className="w-full sm:w-auto rounded-xl bg-slate-900 px-6 py-3 text-xs font-bold text-white hover:bg-black transition"
                         >
-                          View my score
+                          View My Score
                         </button>
                       ) : (
                         <span className="inline-block rounded-xl border border-slate-200 bg-slate-100 px-5 py-2.5 text-xs font-bold text-slate-500">
                           {qStatus === "MISSED"
-                            ? "Missed"
+                            ? "Closed"
                             : qStatus === "DISQUALIFIED"
                             ? "Disqualified"
                             : "Locked"}

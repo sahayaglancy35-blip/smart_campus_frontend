@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchAdminAcademicOversight } from "../../api/academic";
 import { getDepartments } from "../../api/admin";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
-import StatCard from "../common/StatCard";
 import MaterialViewerModal from "../academic/MaterialViewerModal";
 import {
   BookOpenIcon,
@@ -12,13 +11,9 @@ import {
   ClipboardDocumentCheckIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ArrowDownTrayIcon,
   EyeIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
-  ClockIcon,
-  BuildingOffice2Icon,
-  SparklesIcon,
 } from "@heroicons/react/24/outline";
 
 export default function AdminAcademicOversightView({ token }) {
@@ -35,38 +30,59 @@ export default function AdminAcademicOversightView({ token }) {
   // Material Viewer Modal
   const [viewingMaterial, setViewingMaterial] = useState(null);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const [res, deptRes] = await Promise.all([
-        fetchAdminAcademicOversight(token, {
-          department_id: selectedDept || undefined,
-          search: searchTerm || undefined,
-        }),
-        getDepartments(token).catch(() => ({ data: [] })),
-      ]);
-
-      setOversightData(res.data);
-      if (Array.isArray(deptRes?.data)) {
-        setDepartments(deptRes.data);
-      }
-    } catch (err) {
-      setError(err.message || "Failed to load academic oversight data");
-    } finally {
-      setLoading(false);
-    }
-  }, [token, selectedDept, searchTerm]);
+  // Reactive refresh trigger
+  const [refreshKey, setRefreshKey] = useState(0);
+  const loadData = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let active = true;
+    Promise.all([
+      fetchAdminAcademicOversight(token, {
+        department_id: selectedDept || undefined,
+        search: searchTerm || undefined,
+      }).catch(() => ({
+        data: {
+          summary: { total_faculty: 0, total_materials: 0, total_quizzes: 0, total_attempts: 0 },
+          materials: [],
+          quizzes: [],
+          student_activities: [],
+          faculty_summary: [],
+        },
+      })),
+      getDepartments(token).catch(() => ({ data: [] })),
+    ])
+      .then(([res, deptRes]) => {
+        if (!active) return;
+        setOversightData(res.data);
+        if (Array.isArray(deptRes?.data)) {
+          setDepartments(deptRes.data);
+        }
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.message || "Failed to load academic oversight data");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [token, selectedDept, searchTerm, refreshKey]);
 
   const summary = oversightData?.summary || {};
   const materials = oversightData?.materials || [];
   const quizzes = oversightData?.quizzes || [];
   const studentActivities = oversightData?.student_activities || [];
   const facultySummary = oversightData?.faculty_summary || [];
+
+  if (loading) {
+    return <LoadingSpinner message="Loading college-wide academic courseware and quiz oversight..." />;
+  }
 
   return (
     <div className="space-y-6">
@@ -76,14 +92,11 @@ export default function AdminAcademicOversightView({ token }) {
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
-              Institutional Academic Oversight
-            </span>
-            <h2 className="text-xl font-bold text-slate-900 mt-2">
+            <h2 className="text-xl font-bold text-slate-900">
               College-Wide Faculty Quizzes & Courseware
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-              Inspect all curriculum study materials, evaluation quizzes authored by faculties across departments, and live student assessment activities.
+              Curriculum study materials, evaluation quizzes, and candidate assessment activities across departments.
             </p>
           </div>
 
@@ -93,7 +106,7 @@ export default function AdminAcademicOversightView({ token }) {
               onClick={loadData}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
             >
-              Refresh Live Data
+              Refresh
             </button>
           </div>
         </div>
