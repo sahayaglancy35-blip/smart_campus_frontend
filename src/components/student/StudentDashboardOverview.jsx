@@ -10,6 +10,7 @@ import {
   ClockIcon,
   UserMinusIcon,
   SparklesIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 
 export function StudentDashboardOverview({ token, user, onNavigate }) {
@@ -44,6 +45,13 @@ export function StudentDashboardOverview({ token, user, onNavigate }) {
   }, [token]);
 
   const quickLinks = [
+    {
+      key: "academic-hub",
+      label: "Study Materials & Quizzes",
+      description: "Topic courseware, in-page viewers & unit quizzes",
+      icon: BookOpenIcon,
+      color: "from-emerald-800 to-green-900",
+    },
     {
       key: "timetable",
       label: "Today's Timetable",

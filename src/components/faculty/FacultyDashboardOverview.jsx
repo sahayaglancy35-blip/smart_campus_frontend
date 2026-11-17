@@ -10,6 +10,8 @@ import {
   ClockIcon,
   SparklesIcon,
   ChartBarIcon,
+  BookOpenIcon,
+  ShieldExclamationIcon,
 } from "@heroicons/react/24/outline";
 
 export function FacultyDashboardOverview({ token, user, onNavigate }) {
@@ -47,6 +49,20 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
   const todayTimetable = dashboard?.today_timetable || [];
 
   const quickLinks = [
+    {
+      key: "faculty-academics",
+      label: "Materials & Quiz Builder",
+      description: "Upload lecture slides/PDFs, configure schedules & AI questions",
+      icon: BookOpenIcon,
+      color: "from-emerald-800 to-green-900",
+    },
+    {
+      key: "faculty-quiz-analytics",
+      label: "Quiz Results & Integrity",
+      description: "Track candidate scores, item accuracy & cheat detection",
+      icon: ShieldExclamationIcon,
+      color: "from-teal-800 to-emerald-950",
+    },
     {
       key: "sessions",
       label: "Class Attendance Sessions",
