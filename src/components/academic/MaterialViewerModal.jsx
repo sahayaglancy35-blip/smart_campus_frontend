@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import Modal from "../common/Modal";
 import { API_BASE_URL } from "../../api/client";
+import { fetchSignedDownloadUrl } from "../../api/academic";
 import {
-  DocumentTextIcon,
   PlayIcon,
   PresentationChartBarIcon,
   LinkIcon,
@@ -15,6 +15,7 @@ import {
   ChevronRightIcon,
   BookOpenIcon,
   ArrowTopRightOnSquareIcon,
+  ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
 import { CheckIcon } from "@heroicons/react/20/solid";
 
@@ -28,52 +29,53 @@ export default function MaterialViewerModal({
   const [zoom, setZoom] = useState(100);
   const [activeSlide, setActiveSlide] = useState(1);
   const [videoProgress, setVideoProgress] = useState(0);
-  const [isCompleted, setIsCompleted] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [locallyCompleted, setLocallyCompleted] = useState(false);
   const [fileBlobUrl, setFileBlobUrl] = useState(null);
   const [fileLoading, setFileLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  const isCompleted =
+    locallyCompleted ||
+    material?.user_progress?.status === "COMPLETED" ||
+    (material?.user_progress?.percent || 0) >= 100;
 
   useEffect(() => {
     let active = true;
     let createdUrl = null;
 
-    if (material) {
-      setZoom(100);
-      setActiveSlide(1);
-      setVideoProgress(material.user_progress?.percent || 0);
-      setIsCompleted(
-        material.user_progress?.status === "COMPLETED" ||
-        (material.user_progress?.percent || 0) >= 100
-      );
-
-      // If PDF with material_id, fetch stream blob for live viewing
-      if (material.material_id && material.type === "PDF") {
-        setFileLoading(true);
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        fetch(`${API_BASE_URL}/academic/materials/${material.material_id}/view`, { headers })
-          .then((res) => {
-            if (!res.ok) throw new Error("Preview stream failed");
-            return res.blob();
-          })
-          .then((blob) => {
-            if (active) {
-              createdUrl = URL.createObjectURL(blob);
-              setFileBlobUrl(createdUrl);
-              setFileLoading(false);
-            }
-          })
-          .catch((err) => {
-            console.warn("Could not load document stream:", err.message);
-            if (active) {
-              setFileBlobUrl(null);
-              setFileLoading(false);
-            }
-          });
-      } else {
-        setFileBlobUrl(null);
-        setFileLoading(false);
-      }
+    if (material?.material_id && material.type === "PDF") {
+      queueMicrotask(() => {
+        if (active) setFileLoading(true);
+      });
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      fetch(`${API_BASE_URL}/academic/materials/${material.material_id}/view`, { headers })
+        .then((res) => {
+          if (!res.ok) throw new Error("Preview stream failed");
+          return res.blob();
+        })
+        .then((blob) => {
+          if (active) {
+            createdUrl = URL.createObjectURL(blob);
+            setFileBlobUrl(createdUrl);
+            setFileLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not load document stream:", err.message);
+          if (active) {
+            setFileBlobUrl(null);
+            setFileLoading(false);
+          }
+        });
+    } else {
+      queueMicrotask(() => {
+        if (active) {
+          setFileBlobUrl(null);
+          setFileLoading(false);
+        }
+      });
     }
 
     return () => {
@@ -82,7 +84,7 @@ export default function MaterialViewerModal({
         URL.revokeObjectURL(createdUrl);
       }
     };
-  }, [material, token]);
+  }, [material?.material_id, material?.type, token]);
 
   if (!material) return null;
 
@@ -92,7 +94,7 @@ export default function MaterialViewerModal({
       if (onComplete) {
         await onComplete(material.material_id, 100);
       }
-      setIsCompleted(true);
+      setLocallyCompleted(true);
     } catch (err) {
       console.error("Error marking complete:", err);
     } finally {
@@ -104,23 +106,27 @@ export default function MaterialViewerModal({
     if (!material?.material_id) return;
     try {
       setDownloading(true);
-      const downloadUrl = `${API_BASE_URL}/academic/materials/${material.material_id}/download`;
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await fetch(downloadUrl, { headers });
+      setDownloadError("");
+
+      // 1. Request short-lived HMAC signed URL from backend
+      let directUrl = null;
+      try {
+        const signRes = await fetchSignedDownloadUrl(token, material.material_id);
+        if (signRes?.data?.download_url) {
+          directUrl = `${API_BASE_URL.replace("/api/v1", "")}${signRes.data.download_url}`;
+        }
+      } catch (signErr) {
+        console.warn("Signed URL generation fallback:", signErr.message);
+      }
+
+      // 2. Fetch using signed URL or fallback to bearer token download endpoint
+      const targetUrl = directUrl || `${API_BASE_URL}/academic/materials/${material.material_id}/download`;
+      const headers = directUrl ? {} : (token ? { Authorization: `Bearer ${token}` } : {});
+      const response = await fetch(targetUrl, { headers });
 
       if (!response.ok) {
-        // Fallback: download description/content as text
-        const content = material.content || material.description || "Joy University Courseware Material";
-        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${material.title.replace(/[^a-zA-Z0-9_-]/g, "_")}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        return;
+        const errJson = await response.json().catch(() => null);
+        throw new Error(errJson?.message || `Download failed with status ${response.status}`);
       }
 
       const contentType = response.headers.get("content-type") || "";
@@ -142,24 +148,14 @@ export default function MaterialViewerModal({
         ? match[1]
         : material.file_ref
         ? material.file_ref.split(/[\\/]/).pop()
-        : `${material.title.replace(/[^a-zA-Z0-9_-]/g, "_")}${material.type === "PDF" ? ".pdf" : ".txt"}`;
+        : `${material.title.replace(/[^a-zA-Z0-9_-]/g, "_")}${material.type === "PDF" ? ".pdf" : ""}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Download error:", err);
-      // Fallback
-      const content = material.content || material.description || "Joy University Courseware Material";
-      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${material.title.replace(/[^a-zA-Z0-9_-]/g, "_")}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setDownloadError(err.message || "Failed to download material resource from server.");
     } finally {
       setDownloading(false);
     }
@@ -251,7 +247,7 @@ export default function MaterialViewerModal({
           </div>
         );
 
-      case "Slide":
+      case "Slide": {
         const slides = [
           {
             num: 1,
@@ -317,8 +313,9 @@ export default function MaterialViewerModal({
             </div>
           </div>
         );
+      }
 
-      case "Link":
+      case "Link": {
         const targetUrl = material.file_ref || material.content || "#";
         return (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center space-y-4">
@@ -342,6 +339,7 @@ export default function MaterialViewerModal({
             </div>
           </div>
         );
+      }
 
       case "Video":
         return (
@@ -445,6 +443,23 @@ export default function MaterialViewerModal({
             </button>
           </div>
         </div>
+
+        {/* Download Error Notice */}
+        {downloadError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ExclamationCircleIcon className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{downloadError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDownloadError("")}
+              className="text-red-500 hover:text-red-700 font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Dynamic Reader Stage */}
         {renderContent()}

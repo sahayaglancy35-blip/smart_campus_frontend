@@ -17,7 +17,6 @@ import { autosaveAttemptAnswers, submitQuizAttempt, reportQuizViolation } from "
 
 export default function QuizAttemptView({
   token,
-  user,
   attemptData,
   onFinished,
   onViolated,
@@ -25,7 +24,6 @@ export default function QuizAttemptView({
   const {
     attempt_id,
     attempt_number,
-    quiz_id,
     time_limit,
     remaining_seconds: initialRemaining,
     questions = [],
@@ -42,41 +40,108 @@ export default function QuizAttemptView({
   const [violationOccurred, setViolationOccurred] = useState(false);
   const [violationMessage, setViolationMessage] = useState("");
 
+  // Fair Progressive Integrity Policy (3 Strikes)
+  const MAX_STRIKES = 3;
+  const [strikeCount, setStrikeCount] = useState(0);
+  const [warningModalOpen, setWarningModalOpen] = useState(false);
+  const [currentWarning, setCurrentWarning] = useState({ strike: 0, reason: "" });
+
   const autosaveTimerRef = useRef(null);
   const answersRef = useRef(answers);
-  answersRef.current = answers;
-
   const isTerminatedRef = useRef(false);
+  const lastStrikeTimeRef = useRef(0);
+  const strikesLogRef = useRef([]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   // -------------------------------------------------------------
-  // Anti-Cheat Engine: Window Blur, Visibility Change & Exit Guard
+  // Submission Handler (Auto & Manual with Idempotency Key)
   // -------------------------------------------------------------
-  const triggerIntegrityViolation = useCallback(
-    async (reason) => {
-      if (isTerminatedRef.current || violationOccurred) return;
-      isTerminatedRef.current = true;
-      setViolationOccurred(true);
-      setViolationMessage(reason);
-
+  const handleAutoSubmit = useCallback(
+    async (reason = "Automated submission") => {
+      if (isSubmitting || isTerminatedRef.current) return;
+      setIsSubmitting(true);
       try {
-        await reportQuizViolation(token, attempt_id, reason);
+        const payload = {
+          answers: Object.entries(answersRef.current).map(([qId, val]) => ({
+            question_id: parseInt(qId, 10),
+            answer: val,
+          })),
+          idempotency_key: `attempt_${attempt_id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          reason,
+        };
+        const result = await submitQuizAttempt(token, attempt_id, payload);
+        if (onFinished) {
+          onFinished(result.data);
+        }
       } catch (err) {
-        console.error("Failed to report cheating violation:", err);
-      }
-
-      if (onViolated) {
-        onViolated(reason);
+        alert("Submission error: " + err.message);
+      } finally {
+        setIsSubmitting(false);
       }
     },
-    [token, attempt_id, violationOccurred, onViolated]
+    [token, attempt_id, isSubmitting, onFinished]
+  );
+
+  // -------------------------------------------------------------
+  // Anti-Cheat Engine: Progressive 3-Strike Proctoring Policy
+  // -------------------------------------------------------------
+  const recordIntegrityEvent = useCallback(
+    async (reason, eventType) => {
+      if (isTerminatedRef.current || isSubmitting || violationOccurred) return;
+
+      // Rate limit strike detections by 2.5s to avoid duplicate recording of single transient events
+      const now = Date.now();
+      if (now - lastStrikeTimeRef.current < 2500) return;
+      lastStrikeTimeRef.current = now;
+
+      const nextStrike = strikesLogRef.current.length + 1;
+      const logEntry = {
+        strike: nextStrike,
+        eventType,
+        reason,
+        timestamp: new Date().toISOString(),
+      };
+      strikesLogRef.current.push(logEntry);
+      setStrikeCount(nextStrike);
+
+      if (nextStrike < MAX_STRIKES) {
+        // Warning stage (Strike 1 or Strike 2)
+        setCurrentWarning({
+          strike: nextStrike,
+          reason,
+        });
+        setWarningModalOpen(true);
+      } else {
+        // Final Strike (Strike 3): Disqualification and Termination
+        isTerminatedRef.current = true;
+        setViolationOccurred(true);
+        const termMsg = `Maximum focus departures reached (${MAX_STRIKES}/${MAX_STRIKES} strikes). Sitting terminated for academic dishonesty review.`;
+        setViolationMessage(termMsg);
+
+        try {
+          await reportQuizViolation(token, attempt_id, termMsg);
+        } catch (e) {
+          console.warn("Integrity report logged locally:", e.message);
+        }
+
+        if (onViolated) {
+          onViolated(termMsg);
+        }
+      }
+    },
+    [token, attempt_id, isSubmitting, violationOccurred, onViolated, setWarningModalOpen]
   );
 
   useEffect(() => {
     // 1. Detect switching browser tab or minimizing window
     const handleVisibilityChange = () => {
       if (document.hidden && !isTerminatedRef.current) {
-        triggerIntegrityViolation(
-          "Tab switch or background minimization detected during active sitting."
+        recordIntegrityEvent(
+          "Tab switch or background window minimization detected.",
+          "VISIBILITY_CHANGE"
         );
       }
     };
@@ -84,23 +149,25 @@ export default function QuizAttemptView({
     // 2. Detect window blur (clicking outside or window losing focus)
     const handleWindowBlur = () => {
       if (!isTerminatedRef.current) {
-        // Small grace period in case of standard system alert or select drop-down
+        // 500ms grace period so dropdown clicks or OS notifications don't spuriously fire
         setTimeout(() => {
           if (!document.hasFocus() && !isTerminatedRef.current) {
-            triggerIntegrityViolation(
-              "Focus lost: Screen or window switched away from exam tab."
+            recordIntegrityEvent(
+              "Screen or window focus shifted away from the examination.",
+              "WINDOW_BLUR"
             );
           }
-        }, 300);
+        }, 500);
       }
     };
 
-    // 3. Beforeunload (closing tab, refreshing page)
+    // 3. Beforeunload (closing tab, refreshing page) - Warn but do NOT falsely terminate!
     const handleBeforeUnload = (e) => {
-      if (!isTerminatedRef.current) {
-        triggerIntegrityViolation("Page reload or tab close during examination.");
+      if (!isTerminatedRef.current && !isSubmitting) {
         e.preventDefault();
-        e.returnValue = "Leaving this page will immediately cancel your attempt and report you for cheating.";
+        e.returnValue =
+          "You have an active examination session in progress. Leaving this page will cause you to lose time. Are you sure you want to exit?";
+        return e.returnValue;
       }
     };
 
@@ -113,7 +180,7 @@ export default function QuizAttemptView({
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [triggerIntegrityViolation]);
+  }, [recordIntegrityEvent, isSubmitting]);
 
   // -------------------------------------------------------------
   // Countdown Timer & Auto-Submit on Timeout
@@ -133,7 +200,7 @@ export default function QuizAttemptView({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [violationOccurred]);
+  }, [violationOccurred, handleAutoSubmit]);
 
   // -------------------------------------------------------------
   // Periodic & Debounced Autosave
@@ -173,27 +240,6 @@ export default function QuizAttemptView({
       ...prev,
       [questionId]: !prev[questionId],
     }));
-  };
-
-  const handleAutoSubmit = async (reason) => {
-    if (isSubmitting || isTerminatedRef.current) return;
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        answers: Object.entries(answersRef.current).map(([qId, val]) => ({
-          question_id: parseInt(qId, 10),
-          answer: val,
-        })),
-      };
-      const result = await submitQuizAttempt(token, attempt_id, payload);
-      if (onFinished) {
-        onFinished(result.data);
-      }
-    } catch (err) {
-      alert("Submission error: " + err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleManualSubmit = async () => {
@@ -263,9 +309,15 @@ export default function QuizAttemptView({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-slate-900">Active Proctored Sitting</h3>
-                <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 animate-pulse">
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-600"></span> Anti-Cheat Guard ON
-                </span>
+                {strikeCount === 0 ? (
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span> Focus Verified (0/{MAX_STRIKES} Strikes)
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 animate-pulse">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-600"></span> Warning: Strike {strikeCount}/{MAX_STRIKES}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500">
                 Attempt #{attempt_number} &bull; Do NOT switch tabs or exit this screen.
@@ -664,6 +716,49 @@ export default function QuizAttemptView({
               className="rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition"
             >
               {isSubmitting ? "Scoring..." : "Yes, Submit Now"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ================= Proctoring Strike Warning Modal ================= */}
+      <Modal
+        isOpen={warningModalOpen}
+        onClose={() => setWarningModalOpen(false)}
+        title={`Academic Integrity Warning (Strike ${currentWarning.strike} of ${MAX_STRIKES})`}
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-4 border border-amber-200">
+            <ExclamationTriangleIcon className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-amber-900">
+                Focus Departure Detected
+              </p>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                {currentWarning.reason}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-700 border border-slate-200 space-y-1.5">
+            <p className="font-semibold text-slate-900">Proctoring Rules Reminder:</p>
+            <ul className="list-disc pl-4 space-y-1 text-slate-600">
+              <li>Do not click outside the quiz browser tab or minimize your browser window.</li>
+              <li>Do not switch to search engines, documents, or messaging applications.</li>
+              <li>
+                You have received <strong>Strike {currentWarning.strike}</strong> of {MAX_STRIKES}. Reaching {MAX_STRIKES} strikes will permanently terminate your sitting with zero marks.
+              </li>
+            </ul>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setWarningModalOpen(false)}
+              className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white hover:bg-black transition shadow-xs"
+            >
+              I Understand &amp; Resume Exam
             </button>
           </div>
         </div>

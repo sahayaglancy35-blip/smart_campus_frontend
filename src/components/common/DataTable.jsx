@@ -166,6 +166,7 @@ export function DataTable({
               type="button"
               disabled={safeCurrentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, Math.min(p, totalPages) - 1))}
+              aria-label="Previous page"
               className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-xs hover:bg-gray-50 disabled:opacity-40"
             >
               <ChevronLeftIcon className="h-4 w-4" /> Previous
@@ -177,6 +178,7 @@ export function DataTable({
               type="button"
               disabled={safeCurrentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, Math.max(1, p) + 1))}
+              aria-label="Next page"
               className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-xs hover:bg-gray-50 disabled:opacity-40"
             >
               Next <ChevronRightIcon className="h-4 w-4" />

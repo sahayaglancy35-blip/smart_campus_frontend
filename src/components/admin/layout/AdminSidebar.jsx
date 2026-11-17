@@ -9,6 +9,7 @@ import {
   ArrowRightOnRectangleIcon,
   XMarkIcon,
   ShieldCheckIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 
 const ADMIN_NAV_ITEMS = [
@@ -49,6 +50,12 @@ const ADMIN_NAV_ITEMS = [
     description: "Curriculum, batches & sections",
   },
   {
+    route: "/admin/academic/subjects",
+    label: "Courseware & Subjects",
+    icon: BookOpenIcon,
+    description: "Course catalog & subject workspaces",
+  },
+  {
     route: "/admin/attendance",
     label: "Attendance Operations",
     icon: ClipboardDocumentCheckIcon,
@@ -67,6 +74,9 @@ export function AdminSidebar({
   const isItemActive = (itemRoute) => {
     if (itemRoute === "/admin/dashboard") {
       return currentPath === "/admin" || currentPath === "/admin/dashboard";
+    }
+    if (itemRoute === "/admin/academic/subjects") {
+      return currentPath?.startsWith("/admin/academic/subjects");
     }
     return currentPath === itemRoute;
   };

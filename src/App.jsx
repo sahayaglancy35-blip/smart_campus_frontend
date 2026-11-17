@@ -1,19 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { RouterProvider } from "./context/RouterProvider";
 import { useRouter } from "./context/useRouter";
-import LoginPage from "./components/LoginPage";
-import ForgotPasswordPage from "./components/ForgotPasswordPage";
-import AdminLoginPage from "./components/admin/AdminLoginPage";
-import AdminPortal from "./components/admin/AdminPortal";
-import AccessDeniedView from "./components/common/AccessDeniedView";
-import NotFoundPage from "./components/common/NotFoundPage";
-import Dashboard from "./components/Dashboard";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import { loginUser, loginAdmin, getAuthMe, logoutUser } from "./api/auth";
 import { fetchStudentProfile } from "./api/student";
 import { fetchFacultyProfile } from "./api/faculty";
 import * as adminApi from "./api/admin";
 import { ProfileUpdateContext } from "./context/ProfileUpdateContext";
+
+const LoginPage = lazy(() => import("./components/LoginPage"));
+const ForgotPasswordPage = lazy(() => import("./components/ForgotPasswordPage"));
+const AdminLoginPage = lazy(() => import("./components/admin/AdminLoginPage"));
+const AdminPortal = lazy(() => import("./components/admin/AdminPortal"));
+const AccessDeniedView = lazy(() => import("./components/common/AccessDeniedView"));
+const NotFoundPage = lazy(() => import("./components/common/NotFoundPage"));
+const Dashboard = lazy(() => import("./components/Dashboard"));
 
 const ROLE_MAP = {
   Student: "STUDENT",
@@ -33,8 +34,16 @@ const VALID_ADMIN_MODULE_ROUTES = [
   "/admin/departments",
   "/admin/classrooms",
   "/admin/academics",
+  "/admin/academic/subjects",
   "/admin/attendance",
 ];
+
+function isValidAdminPath(path) {
+  if (!path) return false;
+  if (VALID_ADMIN_MODULE_ROUTES.includes(path)) return true;
+  if (path.startsWith("/admin/academic/subjects/")) return true;
+  return false;
+}
 
 function getStoredToken() {
   try {
@@ -194,6 +203,16 @@ function AppContent() {
         profile.employee_id ||
         profile.employee_code ||
         null,
+      department_id: profile.department_id || authData.department_id || null,
+      department_name: profile.department_name || profile.department || null,
+      is_hod: Boolean(
+        profile.is_hod ||
+        authData.is_hod ||
+        /head\s+of\s+department|\bhod/i.test(profile.designation || "") ||
+        /head\s+of\s+department|\bhod/i.test(profile.designation_name || "") ||
+        /head\s+of\s+department|\bhod/i.test(profile.in_charge_class || "") ||
+        /head\s+of\s+department|\bhod/i.test(authData.username || "")
+      ),
     };
   }, []);
 
@@ -708,7 +727,7 @@ function AppContent() {
 
   // 5. Authenticated Admin user
   if (user.role === "ADMIN") {
-    if (VALID_ADMIN_MODULE_ROUTES.includes(currentPath)) {
+    if (isValidAdminPath(currentPath)) {
       return (
         <ProfileUpdateContext.Provider value={handleProfileUpdate}>
           <AdminPortal
@@ -733,7 +752,37 @@ function AppContent() {
   }
 
   // 6. Authenticated Student / Faculty user
-  if (currentPath === "/dashboard" || currentPath === "/") {
+  const isAcademicSubjectRoute =
+    currentPath.startsWith("/faculty/academic") ||
+    currentPath.startsWith("/hod/academic");
+
+  // Prevent students from accessing faculty/HOD academic management routes
+  if (user.role === "STUDENT" && isAcademicSubjectRoute) {
+    return (
+      <AccessDeniedView
+        user={user}
+        onNavigateToPortal={() => navigate("/dashboard")}
+        onLogout={handleGeneralLogout}
+      />
+    );
+  }
+
+  // Prevent non-HOD faculty from accessing HOD department route
+  if (user.role === "FACULTY" && currentPath.startsWith("/hod/academic") && !user.is_hod) {
+    return (
+      <AccessDeniedView
+        user={user}
+        onNavigateToPortal={() => navigate("/dashboard")}
+        onLogout={handleGeneralLogout}
+      />
+    );
+  }
+
+  if (
+    currentPath === "/dashboard" ||
+    currentPath === "/" ||
+    (user.role === "FACULTY" && isAcademicSubjectRoute)
+  ) {
     return (
       <ProfileUpdateContext.Provider value={null}>
         <Dashboard user={user} token={token} onLogout={handleGeneralLogout} />
@@ -754,7 +803,9 @@ function AppContent() {
 export function App() {
   return (
     <RouterProvider>
-      <AppContent />
+      <Suspense fallback={<LoadingSpinner message="Initializing workspace..." />}>
+        <AppContent />
+      </Suspense>
     </RouterProvider>
   );
 }
