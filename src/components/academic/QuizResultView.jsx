@@ -9,6 +9,21 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 
+function formatAnswer(val) {
+  if (val === null || val === undefined || val === "") return "(No answer provided)";
+  if (typeof val === "object") {
+    if (val.key && val.text) return `${val.key}. ${val.text}`;
+    if (val.text) return String(val.text);
+    if (val.key) return String(val.key);
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
 export default function QuizResultView({
   resultData,
   onRetry,
@@ -253,7 +268,7 @@ export default function QuizResultView({
                       Your Answer:
                     </span>
                     <span className="mt-1 block text-sm font-mono">
-                      {item.student_answer ? String(item.student_answer) : "(No answer provided)"}
+                      {formatAnswer(item.student_answer)}
                     </span>
                   </div>
 
@@ -262,7 +277,7 @@ export default function QuizResultView({
                       Correct Answer:
                     </span>
                     <span className="mt-1 block text-sm font-mono text-emerald-900">
-                      {String(item.correct_answer)}
+                      {formatAnswer(item.correct_answer)}
                     </span>
                   </div>
                 </div>

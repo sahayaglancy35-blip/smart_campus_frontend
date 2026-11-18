@@ -15,6 +15,7 @@ import QuizAttemptView from "../academic/QuizAttemptView";
 import QuizResultView from "../academic/QuizResultView";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import ErrorBoundary from "../common/ErrorBoundary";
 import {
   AcademicCapIcon,
   BookOpenIcon,
@@ -229,7 +230,11 @@ export default function StudentAcademicHubView({ token, initialSubjectId = null 
       document.documentElement.requestFullscreen?.().catch(() => {});
       const res = await startQuizAttempt(token, quiz.quiz_id);
       if (res?.success && res.data) {
-        setActiveAttempt(res.data);
+        const attempt = {
+          ...res.data,
+          questions: Array.isArray(res.data.questions) ? res.data.questions : [],
+        };
+        setActiveAttempt(attempt);
         setResultData(null);
       }
     } catch (err) {
@@ -250,20 +255,29 @@ export default function StudentAcademicHubView({ token, initialSubjectId = null 
   // Active quiz screen
   if (activeAttempt) {
     return (
-      <QuizAttemptView
-        token={token}
-        attemptData={activeAttempt}
-        onFinished={(data) => {
+      <ErrorBoundary
+        title="Assessment Display Error"
+        onReset={() => setActiveAttempt(null)}
+        onReturn={() => {
           setActiveAttempt(null);
-          setResultData(data);
           reloadTopicDetails();
         }}
-        onViolated={(reason) => {
-          setActiveAttempt(null);
-          setIntegrityAlert(`Academic Integrity Violation: ${reason}. Quiz attempt has been terminated.`);
-          reloadTopicDetails();
-        }}
-      />
+      >
+        <QuizAttemptView
+          token={token}
+          attemptData={activeAttempt}
+          onFinished={(data) => {
+            setActiveAttempt(null);
+            setResultData(data);
+            reloadTopicDetails();
+          }}
+          onViolated={(reason) => {
+            setActiveAttempt(null);
+            setIntegrityAlert(`Academic Integrity Violation: ${reason}. Quiz attempt has been terminated.`);
+            reloadTopicDetails();
+          }}
+        />
+      </ErrorBoundary>
     );
   }
 
