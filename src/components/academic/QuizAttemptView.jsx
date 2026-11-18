@@ -15,6 +15,68 @@ import { FlagIcon as FlagIconSolid } from "@heroicons/react/24/solid";
 import Modal from "../common/Modal";
 import { autosaveAttemptAnswers, submitQuizAttempt, reportQuizViolation } from "../../api/academic";
 
+/**
+ * Defensive Normalizer for Quiz Question Options
+ * Safely parses stringified JSON, arrays of strings, or arrays of { key, text } objects
+ */
+function normalizeQuestionOptions(options) {
+  if (!options) return [];
+  let parsed = options;
+  if (typeof options === "string") {
+    try {
+      parsed = JSON.parse(options);
+    } catch {
+      return [{ key: "A", text: options, original: options }];
+    }
+  }
+  if (!Array.isArray(parsed)) {
+    if (typeof parsed === "object" && parsed !== null) {
+      return Object.entries(parsed).map(([k, val], idx) => ({
+        key: k || String.fromCharCode(65 + idx),
+        text: typeof val === "object" && val !== null ? (val.text || val.label || JSON.stringify(val)) : String(val),
+        original: val,
+      }));
+    }
+    return [{ key: "A", text: String(parsed), original: parsed }];
+  }
+
+  return parsed.map((opt, idx) => {
+    const defaultKey = String.fromCharCode(65 + idx);
+    if (typeof opt === "object" && opt !== null) {
+      const key = opt.key || opt.value || opt.id || defaultKey;
+      const text = opt.text || opt.label || opt.option || (typeof opt.value === "string" ? opt.value : "");
+      return {
+        key: String(key).trim(),
+        text: String(text || key).trim(),
+        original: opt,
+      };
+    }
+    const str = String(opt ?? "").trim();
+    return {
+      key: defaultKey,
+      text: str,
+      original: opt,
+    };
+  });
+}
+
+function getOptionValue(opt) {
+  if (typeof opt.original === "object" && opt.original !== null) {
+    return opt.original.key || opt.key || opt.original.text || opt.text;
+  }
+  return typeof opt.original === "string" ? opt.original : (opt.text || opt.key);
+}
+
+function isOptionChecked(savedAnswer, opt) {
+  if (savedAnswer === undefined || savedAnswer === null) return false;
+  const str = String(savedAnswer).trim().toLowerCase();
+  if (!str) return false;
+  const keyMatch = String(opt.key).trim().toLowerCase() === str;
+  const textMatch = String(opt.text).trim().toLowerCase() === str;
+  const origMatch = typeof opt.original === "string" && opt.original.trim().toLowerCase() === str;
+  return Boolean(keyMatch || textMatch || origMatch);
+}
+
 export default function QuizAttemptView({
   token,
   attemptData,
@@ -27,7 +89,7 @@ export default function QuizAttemptView({
     time_limit,
     remaining_seconds: initialRemaining,
     questions = [],
-  } = attemptData;
+  } = attemptData || {};
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -67,7 +129,7 @@ export default function QuizAttemptView({
         const payload = {
           answers: Object.entries(answersRef.current).map(([qId, val]) => ({
             question_id: parseInt(qId, 10),
-            answer: val,
+            answer: typeof val === "object" && val !== null ? (val.key || val.text || JSON.stringify(val)) : String(val ?? ""),
           })),
           idempotency_key: `attempt_${attempt_id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           reason,
@@ -211,7 +273,7 @@ export default function QuizAttemptView({
       setSaveStatus("saving");
       const payload = Object.entries(answersRef.current).map(([qId, val]) => ({
         question_id: parseInt(qId, 10),
-        answer: val,
+        answer: typeof val === "object" && val !== null ? (val.key || val.text || JSON.stringify(val)) : String(val ?? ""),
       }));
       await autosaveAttemptAnswers(token, attempt_id, payload);
       setSaveStatus("saved");
@@ -254,9 +316,10 @@ export default function QuizAttemptView({
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  const currentQ = questions[currentIndex] || questions[0];
-  const totalCount = questions.length;
-  const answeredCount = Object.keys(answers).filter((k) => String(answers[k]).trim()).length;
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const currentQ = safeQuestions.length > 0 ? (safeQuestions[currentIndex] || safeQuestions[0]) : null;
+  const totalCount = safeQuestions.length;
+  const answeredCount = Object.keys(answers).filter((k) => String(answers[k] ?? "").trim()).length;
   const flaggedCount = Object.keys(flagged).filter((k) => flagged[k]).length;
   const unansweredCount = Math.max(0, totalCount - answeredCount);
 
@@ -293,6 +356,31 @@ export default function QuizAttemptView({
             Acknowledge & Exit
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // Graceful empty state when questions array is empty or unavailable
+  if (safeQuestions.length === 0 || !currentQ) {
+    return (
+      <div className="mx-auto max-w-xl my-12 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xs">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+          <ExclamationTriangleIcon className="h-8 w-8" />
+        </div>
+        <h3 className="mt-4 text-base font-bold text-slate-900">No Assessment Questions Available</h3>
+        <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+          This quiz assessment does not have any active approved questions configured yet. Please contact your course instructor.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            if (onFinished) onFinished(null);
+            else window.history.back();
+          }}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-black transition shadow-sm"
+        >
+          <ArrowLeftIcon className="h-4 w-4" /> Return to Academic Hub
+        </button>
       </div>
     );
   }
@@ -444,11 +532,12 @@ export default function QuizAttemptView({
                     />
                   </div>
                 ) : (
-                  (currentQ.options || []).map((opt, optIdx) => {
-                    const isSelected = answers[currentQ.question_id] === opt;
+                  normalizeQuestionOptions(currentQ.options).map((opt, optIdx) => {
+                    const isSelected = isOptionChecked(answers[currentQ.question_id], opt);
+                    const optionVal = getOptionValue(opt);
                     return (
                       <label
-                        key={optIdx}
+                        key={opt.key || `opt_${optIdx}`}
                         className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 text-sm font-medium transition ${
                           isSelected
                             ? "border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-2 ring-emerald-600/30 font-semibold"
@@ -459,12 +548,15 @@ export default function QuizAttemptView({
                           <input
                             type="radio"
                             name={`q_${currentQ.question_id}`}
-                            value={opt}
+                            value={optionVal}
                             checked={isSelected}
-                            onChange={() => handleSelectAnswer(currentQ.question_id, opt)}
+                            onChange={() => handleSelectAnswer(currentQ.question_id, optionVal)}
                             className="h-4 w-4 accent-emerald-700 cursor-pointer"
                           />
-                          <span>{opt}</span>
+                          <span className="text-slate-800">
+                            <span className="font-bold text-slate-900 mr-2">{opt.key}.</span>
+                            <span>{opt.text}</span>
+                          </span>
                         </div>
                         {isSelected && <CheckCircleIcon className="h-5 w-5 text-emerald-700 shrink-0" />}
                       </label>
@@ -510,7 +602,7 @@ export default function QuizAttemptView({
           ) : (
             /* Scrolling List Mode */
             <div className="space-y-6">
-              {questions.map((q, idx) => (
+              {safeQuestions.map((q, idx) => (
                 <div
                   key={q.question_id}
                   id={`q_anchor_${idx}`}
@@ -553,11 +645,12 @@ export default function QuizAttemptView({
                         className="w-full rounded-xl border border-slate-300 p-2.5 text-sm"
                       />
                     ) : (
-                      (q.options || []).map((opt, optIdx) => {
-                        const isSelected = answers[q.question_id] === opt;
+                      normalizeQuestionOptions(q.options).map((opt, optIdx) => {
+                        const isSelected = isOptionChecked(answers[q.question_id], opt);
+                        const optionVal = getOptionValue(opt);
                         return (
                           <label
-                            key={optIdx}
+                            key={opt.key || `scroll_opt_${optIdx}`}
                             className={`flex cursor-pointer items-center space-x-3 rounded-xl border p-3 text-xs font-medium transition ${
                               isSelected
                                 ? "border-emerald-600 bg-emerald-50 text-emerald-950 font-bold"
@@ -567,12 +660,15 @@ export default function QuizAttemptView({
                             <input
                               type="radio"
                               name={`scroll_q_${q.question_id}`}
-                              value={opt}
+                              value={optionVal}
                               checked={isSelected}
-                              onChange={() => handleSelectAnswer(q.question_id, opt)}
+                              onChange={() => handleSelectAnswer(q.question_id, optionVal)}
                               className="h-3.5 w-3.5 accent-emerald-700"
                             />
-                            <span>{opt}</span>
+                            <span className="text-slate-800">
+                              <span className="font-bold mr-1.5">{opt.key}.</span>
+                              <span>{opt.text}</span>
+                            </span>
                           </label>
                         );
                       })
@@ -592,7 +688,7 @@ export default function QuizAttemptView({
 
             {/* Grid Palette */}
             <div className="mt-4 grid grid-cols-5 gap-2">
-              {questions.map((q, idx) => {
+              {safeQuestions.map((q, idx) => {
                 const isAnswered = Boolean(String(answers[q.question_id] || "").trim());
                 const isFlagged = Boolean(flagged[q.question_id]);
                 const isCurrent = currentIndex === idx;
