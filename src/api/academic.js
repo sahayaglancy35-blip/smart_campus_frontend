@@ -332,6 +332,7 @@ export async function createQuestion(token, topicId, questionData) {
       options: questionData.options || [],
       answer: String(answer ?? "").trim(),
       correct_answer: String(answer ?? "").trim(),
+      correct_option: String(answer ?? "").trim(),
       explanation: questionData.explanation || "",
       marks: parseFloat(questionData.marks) || 1.0,
       difficulty: questionData.difficulty || "Medium",

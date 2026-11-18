@@ -1042,7 +1042,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
                   <div className="divide-y divide-gray-100">
                     {topics.map((t, idx) => (
                       <div
-                        key={t.topic_id}
+                        key={t.topic_id || `topic_${idx}`}
                         className="py-3 flex items-start justify-between gap-4"
                       >
                         <div className="space-y-1">
@@ -1826,7 +1826,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
             <div className="space-y-3">
               {filteredQuestions.map((q, idx) => (
                 <div
-                  key={q.question_id}
+                  key={q.question_id || q.id || `question_${idx}`}
                   className="rounded-xl border border-gray-200 bg-white p-4 space-y-2 hover:border-gray-300 transition shadow-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1871,7 +1871,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                       {q.options.map((opt, optIdx) => {
                         const optKey =
-                          typeof opt === "object" && opt !== null
+                          typeof opt === "object" && opt !== null && opt.key
                             ? opt.key
                             : ["A", "B", "C", "D"][optIdx] ||
                               String(optIdx + 1);
@@ -2777,7 +2777,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
                     <div className="space-y-1.5 pl-2">
                       {q.options.map((opt, optIndex) => {
                         const optKey =
-                          typeof opt === "object" && opt !== null
+                          typeof opt === "object" && opt !== null && opt.key
                             ? opt.key
                             : ["A", "B", "C", "D"][optIndex] || String(optIndex + 1);
                         const optText =
