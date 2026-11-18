@@ -89,13 +89,19 @@ export default function QuizAttemptView({
     time_limit,
     remaining_seconds: initialRemaining,
     questions = [],
+    question_set = [],
   } = attemptData || {};
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flagged, setFlagged] = useState({});
   const [viewMode, setViewMode] = useState("single"); // "single" or "scroll"
-  const [remainingTime, setRemainingTime] = useState(initialRemaining || time_limit * 60 || 900);
+  const defaultRemaining = Number(initialRemaining) > 0
+    ? Number(initialRemaining)
+    : Number(time_limit) > 0
+    ? Number(time_limit) * 60
+    : 900;
+  const [remainingTime, setRemainingTime] = useState(defaultRemaining);
   const [saveStatus, setSaveStatus] = useState("saved"); // "saving", "saved", "offline"
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -316,7 +322,12 @@ export default function QuizAttemptView({
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const safeQuestions =
+    Array.isArray(questions) && questions.length > 0
+      ? questions
+      : Array.isArray(question_set) && question_set.length > 0
+      ? question_set
+      : [];
   const currentQ = safeQuestions.length > 0 ? (safeQuestions[currentIndex] || safeQuestions[0]) : null;
   const totalCount = safeQuestions.length;
   const answeredCount = Object.keys(answers).filter((k) => String(answers[k] ?? "").trim()).length;
@@ -520,7 +531,7 @@ export default function QuizAttemptView({
 
               {/* Options list */}
               <div className="mt-6 space-y-3">
-                {currentQ.type === "ShortAnswer" ? (
+                {currentQ.type === "ShortAnswer" || currentQ.type === "Short Answer" ? (
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-slate-600">Type your answer:</label>
                     <input
@@ -636,7 +647,7 @@ export default function QuizAttemptView({
                   <h3 className="mt-3 text-base font-bold text-slate-900 font-serif leading-snug">{q.text}</h3>
 
                   <div className="mt-4 space-y-2">
-                    {q.type === "ShortAnswer" ? (
+                    {q.type === "ShortAnswer" || q.type === "Short Answer" ? (
                       <input
                         type="text"
                         value={answers[q.question_id] || ""}

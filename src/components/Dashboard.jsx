@@ -91,7 +91,7 @@ const PAGE_SUBTITLES = {
 const ROLE_PAGES = {
   STUDENT: ["dashboard", "academic-hub", "timetable", "summary", "attendance-logs", "absent-details", "courses"],
   ADMIN: ["admin-dashboard", "students", "faculty", "departments", "infrastructure", "academics", "admin-academic-oversight", "sessions"],
-  FACULTY: ["faculty-dashboard", "faculty-academics", "faculty-quiz-analytics", "timetable", "sessions", "faculty-attendance"],
+  FACULTY: ["faculty-dashboard", "faculty-academics", "faculty-quiz-analytics", "timetable", "sessions"],
 };
 
 export function Dashboard({ user, token, onLogout }) {

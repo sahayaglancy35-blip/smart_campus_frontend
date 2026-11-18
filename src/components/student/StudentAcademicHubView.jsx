@@ -230,9 +230,16 @@ export default function StudentAcademicHubView({ token, initialSubjectId = null 
       document.documentElement.requestFullscreen?.().catch(() => {});
       const res = await startQuizAttempt(token, quiz.quiz_id);
       if (res?.success && res.data) {
+        const questionsList =
+          Array.isArray(res.data.questions) && res.data.questions.length > 0
+            ? res.data.questions
+            : Array.isArray(res.data.question_set)
+            ? res.data.question_set
+            : [];
         const attempt = {
           ...res.data,
-          questions: Array.isArray(res.data.questions) ? res.data.questions : [],
+          questions: questionsList,
+          question_set: questionsList,
         };
         setActiveAttempt(attempt);
         setResultData(null);

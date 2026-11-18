@@ -573,7 +573,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setEditingBatch(null);
     setBatchForm({
       programme_id: programs[0]?.programme_id || "",
-      start_year_id: academicYears[0]?.year_id || "",
+      start_year_id: academicYears[0]?.academic_year_id || academicYears[0]?.year_id || "",
       label: "",
     });
     setFormError("");
@@ -1196,8 +1196,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       key: "start_year_label",
       render: (row) =>
         row.start_year_label ||
-        academicYears.find((ay) => ay.year_id === row.start_year_id)?.year_label ||
-        academicYears.find((ay) => ay.year_id === row.start_year_id)?.label ||
+        academicYears.find((ay) => (ay.academic_year_id || ay.year_id) === row.start_year_id)?.year_label ||
+        academicYears.find((ay) => (ay.academic_year_id || ay.year_id) === row.start_year_id)?.label ||
         "—",
     },
     {
@@ -2345,15 +2345,18 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
             <select
               required
               value={batchForm.start_year_id}
-              onChange={(e) => setBatchForm({ ...batchForm, start_year_id: Number(e.target.value) })}
+              onChange={(e) => setBatchForm({ ...batchForm, start_year_id: e.target.value ? Number(e.target.value) : "" })}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
             >
               <option value="">Select Academic Year</option>
-              {academicYears.map((ay) => (
-                <option key={ay.year_id} value={ay.year_id}>
-                  {ay.year_label || ay.label} {ay.is_current ? "(Current)" : ""}
-                </option>
-              ))}
+              {academicYears.map((ay) => {
+                const ayId = ay.academic_year_id || ay.year_id;
+                return (
+                  <option key={ayId} value={ayId}>
+                    {ay.year_label || ay.label} {ay.is_current ? "(Current)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -2549,11 +2552,14 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
             >
               <option value="">Unassigned</option>
-              {facultyList.map((f) => (
-                <option key={f.faculty_id} value={f.faculty_id}>
-                  {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`})
-                </option>
-              ))}
+              {facultyList.map((f) => {
+                const isInactive = f.is_active === 0 || f.is_active === false;
+                return (
+                  <option key={f.faculty_id} value={f.faculty_id} disabled={isInactive}>
+                    {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`}){isInactive ? " — [Inactive / Resigned]" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -2723,11 +2729,14 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
                   onChange={(e) => setSlotForm({ ...slotForm, faculty_id: Number(e.target.value) })}
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
                 >
-                  {facultyList.map((f) => (
-                    <option key={f.faculty_id} value={f.faculty_id}>
-                      {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`})
-                    </option>
-                  ))}
+                  {facultyList.map((f) => {
+                    const isInactive = f.is_active === 0 || f.is_active === false;
+                    return (
+                      <option key={f.faculty_id} value={f.faculty_id} disabled={isInactive}>
+                        {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`}){isInactive ? " — [Inactive / Resigned]" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

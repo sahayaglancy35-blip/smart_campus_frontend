@@ -3,7 +3,22 @@ import {
   MagnifyingGlassIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
+
+function extractSearchableStrings(val, depth = 0) {
+  if (depth > 3 || val === null || val === undefined) return [];
+  if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") {
+    return [String(val).toLowerCase()];
+  }
+  if (Array.isArray(val)) {
+    return val.flatMap((v) => extractSearchableStrings(v, depth + 1));
+  }
+  if (typeof val === "object") {
+    return Object.values(val).flatMap((v) => extractSearchableStrings(v, depth + 1));
+  }
+  return [];
+}
 
 export function DataTable({
   columns,
@@ -21,17 +36,28 @@ export function DataTable({
 
   const filteredData = useMemo(() => {
     if (!searchTerm.trim()) return data;
-    const term = searchTerm.toLowerCase();
+    const terms = searchTerm.toLowerCase().trim().split(/\s+/);
 
     return data.filter((item) => {
+      if (!item) return false;
       if (searchKey && item[searchKey]) {
-        return String(item[searchKey]).toLowerCase().includes(term);
+        const valStr = String(item[searchKey]).toLowerCase();
+        return terms.every((t) => valStr.includes(t));
       }
-      return Object.values(item).some((val) =>
-        String(val ?? "").toLowerCase().includes(term)
-      );
+
+      const allStrings = extractSearchableStrings(item);
+      if (Array.isArray(columns)) {
+        for (const col of columns) {
+          if (col.key && item[col.key] !== undefined) {
+            allStrings.push(...extractSearchableStrings(item[col.key]));
+          }
+        }
+      }
+
+      const combinedText = allStrings.join(" ");
+      return terms.every((t) => combinedText.includes(t));
     });
-  }, [data, searchTerm, searchKey]);
+  }, [data, searchTerm, searchKey, columns]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -84,8 +110,21 @@ export function DataTable({
             value={searchTerm}
             onChange={handleSearchChange}
             placeholder={searchPlaceholder}
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 shadow-xs focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-9 text-sm text-gray-900 placeholder-gray-400 shadow-xs focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setCurrentPage(1);
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+              title="Clear search"
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>

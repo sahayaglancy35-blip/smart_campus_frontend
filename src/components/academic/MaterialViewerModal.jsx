@@ -52,6 +52,12 @@ export default function MaterialViewerModal({
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       fetch(`${API_BASE_URL}/academic/materials/${material.material_id}/view`, { headers })
         .then((res) => {
+          if (!res.ok) {
+            return fetch(`${API_BASE_URL}/academic/materials/${material.material_id}/download?disposition=inline`, { headers });
+          }
+          return res;
+        })
+        .then((res) => {
           if (!res.ok) throw new Error("Preview stream failed");
           return res.blob();
         })
