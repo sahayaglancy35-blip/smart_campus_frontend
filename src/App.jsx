@@ -546,14 +546,23 @@ function AppContent() {
         throw new Error(result.message || "Could not update your profile.");
       }
 
+      const returnedData = result?.data || {};
+      const updatedDob = values.dateOfBirth
+        ? String(values.dateOfBirth).substring(0, 10)
+        : (returnedData.date_of_birth ? String(returnedData.date_of_birth).substring(0, 10) : null);
+
       const updatedUser = {
         ...user,
         name: values.name,
         full_name: values.name,
         email: values.email,
         joiningYear: values.joiningYear,
-        dateOfBirth: values.dateOfBirth,
+        joining_year: values.joiningYear,
+        dateOfBirth: updatedDob,
+        date_of_birth: updatedDob,
+        dob: updatedDob,
         bloodGroup: values.bloodGroup,
+        blood_group: values.bloodGroup,
         gender: values.gender || user?.gender || "male",
         genderLabel: values.gender,
       };

@@ -10,6 +10,7 @@ import {
   MapPinIcon,
   UserIcon,
   TableCellsIcon,
+  AcademicCapIcon,
 } from "@heroicons/react/24/outline";
 
 const WEEK_DAYS = [
@@ -163,6 +164,7 @@ export function StudentTimetableView({ token }) {
 
   const [view, setView] = useState("day"); // "day" | "week"
   const [selectedDay, setSelectedDay] = useState(todayId);
+  const [selectedSemester, setSelectedSemester] = useState(null);
   const [timetable, setTimetable] = useState([]);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState(token ? "" : "Please log in to view timetable.");
@@ -193,13 +195,40 @@ export function StudentTimetableView({ token }) {
     return () => controller.abort();
   }, [token]);
 
+  // Extract distinct enrolled semesters
+  const availableSemesters = useMemo(() => {
+    const set = new Set();
+    timetable.forEach((item) => {
+      if (item.semester) set.add(Number(item.semester));
+    });
+    return [...set].sort((a, b) => a - b);
+  }, [timetable]);
+
+  // Derive active semester: default to current academic session ODD term (or first available)
+  const activeSemester = useMemo(() => {
+    if (selectedSemester && availableSemesters.includes(Number(selectedSemester))) {
+      return Number(selectedSemester);
+    }
+    if (availableSemesters.length === 0) return null;
+    const oddSem = availableSemesters.find((s) => s % 2 === 1);
+    return oddSem !== undefined ? oddSem : availableSemesters[0];
+  }, [availableSemesters, selectedSemester]);
+
+  // Filter timetable strictly to the active semester slots
+  const filteredTimetable = useMemo(() => {
+    if (!activeSemester) return timetable;
+    return timetable.filter(
+      (item) => !item.semester || Number(item.semester) === Number(activeSemester)
+    );
+  }, [timetable, activeSemester]);
+
   // Monday to Saturday; Sunday appears only if the student has Sunday classes
   const days = useMemo(
     () =>
-      timetable.some((item) => Number(item.day_of_week) === 7)
+      filteredTimetable.some((item) => Number(item.day_of_week) === 7)
         ? [...WEEK_DAYS, SUNDAY]
         : WEEK_DAYS,
-    [timetable]
+    [filteredTimetable]
   );
 
   // If today has no tab (e.g. a Sunday with no classes), fall back to Monday
@@ -209,10 +238,10 @@ export function StudentTimetableView({ token }) {
   // Classes for the selected day, in time order
   const daySlots = useMemo(
     () =>
-      timetable
+      filteredTimetable
         .filter((item) => Number(item.day_of_week) === activeDay)
         .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time))),
-    [timetable, activeDay]
+    [filteredTimetable, activeDay]
   );
 
   const viewButtonClass = (active) =>
@@ -224,6 +253,50 @@ export function StudentTimetableView({ token }) {
 
   return (
     <div className="space-y-6">
+      {/* Semester selector / active term indicator */}
+      {availableSemesters.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-4 py-3 border border-gray-100 shadow-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <AcademicCapIcon className="h-5 w-5 text-emerald-800" />
+            <span className="text-xs font-bold text-gray-700">Academic Semester:</span>
+            {availableSemesters.length > 1 ? (
+              <div className="inline-flex rounded-xl bg-gray-100 p-1">
+                {availableSemesters.map((sem) => {
+                  const isSelected = activeSemester === sem;
+                  const isOdd = sem % 2 === 1;
+                  return (
+                    <button
+                      key={sem}
+                      type="button"
+                      onClick={() => setSelectedSemester(sem)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                        isSelected
+                          ? "bg-emerald-800 text-white shadow-xs"
+                          : "text-gray-600 hover:bg-white/60 hover:text-gray-900"
+                      }`}
+                    >
+                      Semester {sem}
+                      {isOdd && (
+                        <span className="rounded-full bg-emerald-700/60 px-1.5 py-0.5 text-[10px] text-emerald-100">
+                          Active Term
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200">
+                Semester {activeSemester} (Active Term)
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-gray-500">
+            {filteredTimetable.length} class {filteredTimetable.length === 1 ? "slot" : "slots"} in Semester {activeSemester}
+          </span>
+        </div>
+      )}
+
       {/* Toolbar: view switch + (day picker | legend) */}
       <div className="flex flex-col gap-3 border-b border-gray-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
         {/* View switch */}
@@ -291,7 +364,7 @@ export function StudentTimetableView({ token }) {
           </p>
         </div>
       ) : view === "week" ? (
-        <WeeklyTimetable timetable={timetable} days={days} todayId={todayId} />
+        <WeeklyTimetable timetable={filteredTimetable} days={days} todayId={todayId} />
       ) : daySlots.length === 0 ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-xs">
           <CalendarDaysIcon className="mx-auto h-12 w-12 text-gray-300" />

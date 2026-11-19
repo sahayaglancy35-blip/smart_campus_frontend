@@ -106,6 +106,25 @@ export function SubjectDiscoveryDashboard({
     };
   }, [token, isAdmin, isHOD]);
 
+  // -------------------------------------------------------------
+  // Filter Cascading Logic
+  // -------------------------------------------------------------
+  const filteredDepartments = useMemo(() => {
+    if (!selectedSchool) return departments;
+    return departments.filter((d) => Number(d.school_id) === Number(selectedSchool));
+  }, [departments, selectedSchool]);
+
+  const filteredProgrammes = useMemo(() => {
+    let list = programmes;
+    if (selectedSchool) {
+      list = list.filter((p) => Number(p.school_id) === Number(selectedSchool));
+    }
+    if (selectedDepartment) {
+      list = list.filter((p) => Number(p.department_id) === Number(selectedDepartment));
+    }
+    return list;
+  }, [programmes, selectedSchool, selectedDepartment]);
+
   // Load Subjects from Backend API
   useEffect(() => {
     let active = true;
@@ -307,7 +326,26 @@ export function SubjectDiscoveryDashboard({
                   </label>
                   <select
                     value={selectedSchool}
-                    onChange={(e) => setSelectedSchool(e.target.value)}
+                    onChange={(e) => {
+                      const newSchool = e.target.value;
+                      setSelectedSchool(newSchool);
+                      if (selectedDepartment) {
+                        const dept = departments.find(
+                          (d) => String(d.department_id) === String(selectedDepartment)
+                        );
+                        if (dept && newSchool && Number(dept.school_id) !== Number(newSchool)) {
+                          setSelectedDepartment("");
+                        }
+                      }
+                      if (selectedProgram) {
+                        const prog = programmes.find(
+                          (p) => String(p.programme_id) === String(selectedProgram)
+                        );
+                        if (prog && newSchool && Number(prog.school_id) !== Number(newSchool)) {
+                          setSelectedProgram("");
+                        }
+                      }
+                    }}
                     className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   >
                     <option value="">All Schools</option>
@@ -324,15 +362,26 @@ export function SubjectDiscoveryDashboard({
               {isAdmin && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Department
+                    Department {selectedSchool ? `(${filteredDepartments.length})` : ""}
                   </label>
                   <select
                     value={selectedDepartment}
-                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    onChange={(e) => {
+                      const newDept = e.target.value;
+                      setSelectedDepartment(newDept);
+                      if (selectedProgram) {
+                        const prog = programmes.find(
+                          (p) => String(p.programme_id) === String(selectedProgram)
+                        );
+                        if (prog && newDept && Number(prog.department_id) !== Number(newDept)) {
+                          setSelectedProgram("");
+                        }
+                      }
+                    }}
                     className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   >
                     <option value="">All Departments</option>
-                    {departments.map((d) => (
+                    {filteredDepartments.map((d) => (
                       <option key={d.department_id} value={d.department_id}>
                         {d.name}
                       </option>
@@ -344,7 +393,7 @@ export function SubjectDiscoveryDashboard({
               {/* Programme Filter */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Programme
+                  Programme {selectedSchool || selectedDepartment ? `(${filteredProgrammes.length})` : ""}
                 </label>
                 <select
                   value={selectedProgram}
@@ -352,7 +401,7 @@ export function SubjectDiscoveryDashboard({
                   className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                 >
                   <option value="">All Programmes</option>
-                  {programmes.map((p) => (
+                  {filteredProgrammes.map((p) => (
                     <option key={p.programme_id} value={p.programme_id}>
                       {p.name}
                     </option>

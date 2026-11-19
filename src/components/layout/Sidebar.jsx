@@ -105,7 +105,6 @@ export function Sidebar({
     { key: "faculty-quiz-analytics", label: "Assessment Analytics", icon: ShieldExclamationIcon },
     { key: "timetable", label: "My Schedule", icon: CalendarDaysIcon },
     { key: "sessions", label: "Class Sessions", icon: ClipboardDocumentCheckIcon },
-    { key: "faculty-attendance", label: "My Attendance Logs", icon: ClockIcon },
   ];
 
   const navItems =

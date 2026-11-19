@@ -77,13 +77,6 @@ export function FacultyDashboardOverview({ token, user, onNavigate }) {
       icon: CalendarDaysIcon,
       color: "from-emerald-700 to-teal-900",
     },
-    {
-      key: "faculty-attendance",
-      label: "Attendance Audit Logs",
-      description: "Conducted lecture history and session verification",
-      icon: ClockIcon,
-      color: "from-teal-800 to-green-950",
-    },
   ];
 
   return (

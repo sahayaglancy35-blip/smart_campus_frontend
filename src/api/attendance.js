@@ -67,3 +67,13 @@ export async function overrideAttendanceRecord(token, id, data) {
     body: data,
   });
 }
+
+// Attendance Report / Analytics
+export async function fetchAttendanceReport(token, params = {}, signal) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") query.append(k, v);
+  });
+  const queryString = query.toString() ? `?${query.toString()}` : "";
+  return apiClient(`/admin/reports/attendance${queryString}`, { token, signal });
+}

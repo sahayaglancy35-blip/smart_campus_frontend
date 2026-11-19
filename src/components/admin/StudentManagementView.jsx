@@ -482,6 +482,7 @@ export function StudentManagementView({ token }) {
         <DataTable
           columns={columns}
           data={students}
+          rowKey="student_id"
           searchPlaceholder="Search by name, register number, programme, or batch..."
           pageSize={10}
           emptyMessage="No students found matching your criteria."
