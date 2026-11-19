@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { fetchStudentAttendanceSummary } from "../../api/student";
-import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import { deliveryStyleOf } from "../common/deliveryStyle";
 import { DeliveryLegend } from "../common/DeliveryLegend";
@@ -28,7 +27,6 @@ const TONE = {
   emerald: {
     text: "text-emerald-600",
     bar: "bg-gradient-to-r from-emerald-400 to-teal-300",
-    ring: "#2DD4BF",
     chip: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
     border: "border-l-emerald-400",
     avatar: "bg-gradient-to-br from-emerald-500 to-teal-400",
@@ -36,7 +34,6 @@ const TONE = {
   green: {
     text: "text-green-700",
     bar: "bg-gradient-to-r from-green-500 to-emerald-400",
-    ring: "#34D399",
     chip: "bg-green-50 text-green-700 ring-1 ring-green-200",
     border: "border-l-green-500",
     avatar: "bg-gradient-to-br from-green-600 to-emerald-500",
@@ -44,7 +41,6 @@ const TONE = {
   amber: {
     text: "text-amber-600",
     bar: "bg-gradient-to-r from-amber-500 to-yellow-400",
-    ring: "#FBBF24",
     chip: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
     border: "border-l-amber-500",
     avatar: "bg-gradient-to-br from-amber-500 to-yellow-400",
@@ -52,7 +48,6 @@ const TONE = {
   red: {
     text: "text-red-600",
     bar: "bg-gradient-to-r from-red-500 to-rose-400",
-    ring: "#F87171",
     chip: "bg-red-50 text-red-700 ring-1 ring-red-200",
     border: "border-l-red-500",
     avatar: "bg-gradient-to-br from-red-500 to-rose-400",
@@ -60,7 +55,6 @@ const TONE = {
   gray: {
     text: "text-gray-400",
     bar: "bg-gray-300",
-    ring: "#D1D5DB",
     chip: "bg-gray-100 text-gray-500 ring-1 ring-gray-200",
     border: "border-l-gray-300",
     avatar: "bg-gradient-to-br from-gray-400 to-gray-300",
@@ -68,35 +62,22 @@ const TONE = {
 };
 
 /* ----------------------------------------------------------------
-   useCountUp — animates a number from 0 to `target` once, on mount
-   or whenever target changes. Pure visual polish, no logic change.
+   Loader colors — only two schemes:
+   - ok  (75% and above): dark green fill on a light green base
+   - low (below 75%):     dark red fill on a red base
 ---------------------------------------------------------------- */
-function useCountUp(target, duration = 900) {
-  const [value, setValue] = useState(0);
-  const frame = useRef(null);
-
-  useEffect(() => {
-    const start = performance.now();
-    const from = 0;
-
-    function tick(now) {
-      const elapsed = now - start;
-      const progress = Math.min(1, elapsed / duration);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(from + (target - from) * eased);
-      if (progress < 1) {
-        frame.current = requestAnimationFrame(tick);
-      }
-    }
-
-    frame.current = requestAnimationFrame(tick);
-    return () => frame.current && cancelAnimationFrame(frame.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-
-  return value;
-}
+const LOADER = {
+  ok: {
+    bg: "bg-green-900",
+    base: "bg-gradient-to-r from-green-400/35 to-green-300/50",
+    fill: "bg-gradient-to-br from-green-950 via-green-900 to-green-800",
+  },
+  low: {
+    bg: "bg-red-950",
+    base: "bg-gradient-to-r from-red-500/35 to-rose-400/55",
+    fill: "bg-gradient-to-br from-red-950 via-red-900 to-red-800",
+  },
+};
 
 /* Initials for the subject avatar, e.g. "Data Structures" -> "DS" */
 function initialsOf(name = "") {
@@ -107,8 +88,8 @@ function initialsOf(name = "") {
 }
 
 export function AttendanceSummaryView({ token }) {
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(Boolean(token));
+  // null = data hasn't arrived yet (no separate loading flag needed)
+  const [subjects, setSubjects] = useState(null);
   const [error, setError] = useState(token ? "" : "Please log in to view attendance.");
 
   useEffect(() => {
@@ -118,17 +99,12 @@ export function AttendanceSummaryView({ token }) {
 
     async function loadAttendance() {
       try {
-        setLoading(true);
         setError("");
         const result = await fetchStudentAttendanceSummary(token, controller.signal);
         setSubjects(Array.isArray(result?.data) ? result.data : []);
       } catch (err) {
         if (err.name !== "AbortError") {
           setError(err.message || "Unable to load attendance summary.");
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
         }
       }
     }
@@ -137,18 +113,19 @@ export function AttendanceSummaryView({ token }) {
     return () => controller.abort();
   }, [token]);
 
-  const total = subjects.reduce((sum, s) => sum + Number(s.total_classes || 0), 0);
-  const attended = subjects.reduce((sum, s) => sum + Number(s.attended_classes || 0), 0);
-  const absent = subjects.reduce((sum, s) => sum + Number(s.absent_classes || 0), 0);
+  const list = subjects ?? [];
+  const total = list.reduce((sum, s) => sum + Number(s.total_classes || 0), 0);
+  const attended = list.reduce((sum, s) => sum + Number(s.attended_classes || 0), 0);
+  const absent = list.reduce((sum, s) => sum + Number(s.absent_classes || 0), 0);
   const overall = total ? (attended / total) * 100 : 0;
-  const animatedOverall = useCountUp(overall);
-
-  if (loading) {
-    return <LoadingSpinner message="Calculating attendance metrics..." />;
-  }
 
   if (error) {
     return <Alert type="error" message={error} />;
+  }
+
+  // Nothing to show until the data arrives
+  if (subjects === null) {
+    return null;
   }
 
   if (subjects.length === 0) {
@@ -166,36 +143,38 @@ export function AttendanceSummaryView({ token }) {
   }
 
   const overallStatus = getStatus(overall);
-  const overallTone = TONE[overallStatus.tone];
-  const clampedOverall = Math.min(100, Math.max(0, animatedOverall));
+  const loader = overall >= 75 ? LOADER.ok : LOADER.low; // below 75% -> red
+  const clampedOverall = Math.min(100, Math.max(0, overall));
 
   return (
     <div className="space-y-7">
-      {/* ---------- Hero: dark gradient panel, glowing animated ring, inline stat pills ---------- */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-green-950 via-green-900 to-green-800 p-6 text-white shadow-xl shadow-green-900/20 sm:p-8">
+      {/* ---------- Hero: card that fills with dark green (red below 75%) up to the overall %, inline stat pills ---------- */}
+      <section className={`relative overflow-hidden rounded-3xl ${loader.bg} p-6 text-white shadow-xl shadow-green-900/20 sm:p-8`}>
+        {/* Card base: light green (or red below 75%) */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 ${loader.base}`}
+        />
+        {/* Progress fill: dark green (or dark red below 75%), covers the card from the left up to the overall % */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-0 left-0 ${loader.fill} ${
+            clampedOverall > 0 ? "border-r border-white/25" : ""
+          }`}
+          style={{ width: `${clampedOverall}%` }}
+        />
         {/* decorative background blobs */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-green-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
 
-        <div className="relative flex flex-col items-center gap-7 sm:flex-row sm:items-center">
-          {/* Donut ring with glow, animated fill + count-up number */}
-          <div
-            className="relative flex h-[148px] w-[148px] shrink-0 items-center justify-center rounded-full transition-[background] duration-300"
-            style={{
-              background: `conic-gradient(${overallTone.ring} ${clampedOverall * 3.6}deg, rgba(255,255,255,0.12) 0deg)`,
-            }}
-          >
-            <div className="flex h-[112px] w-[112px] flex-col items-center justify-center pt-3 rounded-full bg-green-950 ring-1 ring-white/10 shadow-[inset_0_0_18px_rgba(0,0,0,0.5)]">
-              <span
-                className={`whitespace-nowrap font-extrabold leading-none tracking-tight text-white tabular-nums ${
-                  overall.toFixed(1).length >= 5 ? "text-[30px]" : "text-[36px]"
-                }`}
-              >
-                {animatedOverall.toFixed(1)}
-                <span className="ml-0.5 text-lg font-bold text-green-200/80">%</span>
-              </span>
-              <span className="mt-1 text-[11px] text-green-200/70">overall</span>
-            </div>
+        <div className="relative flex flex-col items-center gap-7 [text-shadow:0_1px_2px_rgba(0,0,0,0.35)] sm:flex-row sm:items-center">
+          {/* Overall percentage */}
+          <div className="flex shrink-0 flex-col items-center justify-center sm:px-2">
+            <span className="whitespace-nowrap text-[52px] font-extrabold leading-none tracking-tight text-white tabular-nums">
+              {overall.toFixed(1)}
+              <span className="ml-1 text-2xl font-bold text-white">%</span>
+            </span>
+            <span className="mt-2 text-sm font-medium text-green-100">overall</span>
           </div>
 
           {/* Summary + inline pills */}
@@ -208,7 +187,7 @@ export function AttendanceSummaryView({ token }) {
               )}
               <h2 className="text-xl font-bold">{overallStatus.label}</h2>
             </div>
-            <p className="mt-1.5 text-sm text-green-100/80">
+            <p className="mt-1.5 text-sm text-green-50">
               You've attended <span className="font-semibold text-white">{attended}</span> of{" "}
               <span className="font-semibold text-white">{total}</span> classes this semester.
             </p>
