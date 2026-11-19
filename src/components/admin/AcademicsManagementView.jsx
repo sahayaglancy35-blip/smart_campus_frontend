@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   getSchools,
   createSchool,
@@ -41,6 +41,7 @@ import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
 import { deliveryStyleOf } from "../common/deliveryStyle";
 import { DeliveryLegend } from "../common/DeliveryLegend";
+import { AdminTimetableWorkspace } from "./AdminTimetableWorkspace";
 
 import {
   PlusIcon,
@@ -51,8 +52,6 @@ import {
   UserGroupIcon,
   CalendarDaysIcon,
   BuildingLibraryIcon,
-  FunnelIcon,
-  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 
 const DAYS_OF_WEEK = [
@@ -122,14 +121,6 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   const [departments, setDepartments] = useState([]);
   const [facultyList, setFacultyList] = useState([]);
   const [classroomList, setClassroomList] = useState([]);
-
-  // Cascading 5-Tier Timetable Filter State
-  const [filterSchool, setFilterSchool] = useState("ALL");
-  const [filterDepartment, setFilterDepartment] = useState("ALL");
-  const [filterProgram, setFilterProgram] = useState("ALL");
-  const [filterBatch, setFilterBatch] = useState("ALL");
-  const [filterSection, setFilterSection] = useState("ALL");
-  const [dayFilter, setDayFilter] = useState("ALL");
 
   // Modals state
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
@@ -356,77 +347,6 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   }, [token, reloadTrigger, refreshTrigger]);
 
   // -------------------------------------------------------------
-  // Cascading Filter Logic
-  // -------------------------------------------------------------
-  const filteredDepartments = useMemo(() => {
-    if (filterSchool === "ALL") return departments;
-    return departments.filter((d) => Number(d.school_id) === Number(filterSchool));
-  }, [departments, filterSchool]);
-
-  const filteredPrograms = useMemo(() => {
-    let list = programs;
-    if (filterSchool !== "ALL") {
-      list = list.filter((p) => Number(p.school_id) === Number(filterSchool));
-    }
-    if (filterDepartment !== "ALL") {
-      list = list.filter((p) => Number(p.department_id) === Number(filterDepartment));
-    }
-    return list;
-  }, [programs, filterSchool, filterDepartment]);
-
-  const filteredBatches = useMemo(() => {
-    if (filterProgram !== "ALL") {
-      return batches.filter((b) => Number(b.programme_id) === Number(filterProgram));
-    }
-    // Scope batches to only programs matching active school and department filter
-    const allowedProgramIds = new Set(filteredPrograms.map((p) => Number(p.programme_id)));
-    return batches.filter((b) => allowedProgramIds.has(Number(b.programme_id)));
-  }, [batches, filterProgram, filteredPrograms]);
-
-  const filteredSections = useMemo(() => {
-    if (filterBatch !== "ALL") {
-      return sections.filter((s) => Number(s.batch_id) === Number(filterBatch));
-    }
-    // Scope sections to only batches matching active hierarchy filter
-    const allowedBatchIds = new Set(filteredBatches.map((b) => Number(b.batch_id)));
-    return sections.filter((s) => allowedBatchIds.has(Number(s.batch_id)));
-  }, [sections, filterBatch, filteredBatches]);
-
-  // Timetable Slots filtered by the 5 tiers + Day
-  const filteredTimetableSlots = useMemo(() => {
-    return timetableSlots.filter((slot) => {
-      if (filterSchool !== "ALL" && Number(slot.school_id) !== Number(filterSchool)) {
-        return false;
-      }
-      if (filterDepartment !== "ALL" && Number(slot.department_id) !== Number(filterDepartment)) {
-        return false;
-      }
-      if (filterProgram !== "ALL" && Number(slot.programme_id) !== Number(filterProgram)) {
-        return false;
-      }
-      if (filterBatch !== "ALL" && Number(slot.batch_id) !== Number(filterBatch)) {
-        return false;
-      }
-      if (filterSection !== "ALL" && Number(slot.section_id) !== Number(filterSection)) {
-        return false;
-      }
-      if (dayFilter !== "ALL" && Number(slot.day_of_week) !== Number(dayFilter)) {
-        return false;
-      }
-      return true;
-    });
-  }, [timetableSlots, filterSchool, filterDepartment, filterProgram, filterBatch, filterSection, dayFilter]);
-
-  const handleResetFilters = () => {
-    setFilterSchool("ALL");
-    setFilterDepartment("ALL");
-    setFilterProgram("ALL");
-    setFilterBatch("ALL");
-    setFilterSection("ALL");
-    setDayFilter("ALL");
-  };
-
-  // -------------------------------------------------------------
   // School Actions
   // -------------------------------------------------------------
   const handleOpenCreateSchool = () => {
@@ -573,7 +493,7 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     setEditingBatch(null);
     setBatchForm({
       programme_id: programs[0]?.programme_id || "",
-      start_year_id: academicYears[0]?.year_id || "",
+      start_year_id: academicYears[0]?.academic_year_id || academicYears[0]?.year_id || "",
       label: "",
     });
     setFormError("");
@@ -872,28 +792,21 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
   // -------------------------------------------------------------
   // Timetable Slot Actions
   // -------------------------------------------------------------
-  const handleOpenCreateSlot = () => {
+  const handleOpenCreateSlot = (initialValues = {}) => {
     setEditingSlot(null);
     setFormError("");
-    try {
-      const saved = sessionStorage.getItem("ju_academics_slot_form");
-      if (!saved) {
-        const today = new Date().toISOString().split("T")[0];
-        setSlotForm({
-          section_id: sections[0]?.section_id || "",
-          faculty_id: facultyList[0]?.faculty_id || "",
-          classroom_id: classroomList[0]?.classroom_id || "",
-          day_of_week: 1,
-          start_time: "09:00:00",
-          end_time: "10:00:00",
-          effective_from: today,
-          effective_to: "",
-          is_active: 1,
-        });
-      }
-    } catch {
-      // Ignore storage errors
-    }
+    const today = new Date().toISOString().split("T")[0];
+    setSlotForm({
+      section_id: initialValues.section_id || sections[0]?.section_id || "",
+      faculty_id: initialValues.faculty_id || facultyList[0]?.faculty_id || "",
+      classroom_id: initialValues.classroom_id || classroomList[0]?.classroom_id || "",
+      day_of_week: initialValues.day_of_week !== undefined ? initialValues.day_of_week : 1,
+      start_time: initialValues.start_time || "09:00:00",
+      end_time: initialValues.end_time || "10:00:00",
+      effective_from: initialValues.effective_from || today,
+      effective_to: initialValues.effective_to || "",
+      is_active: 1,
+    });
     setIsSlotModalOpen(true);
   };
 
@@ -1196,8 +1109,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
       key: "start_year_label",
       render: (row) =>
         row.start_year_label ||
-        academicYears.find((ay) => ay.year_id === row.start_year_id)?.year_label ||
-        academicYears.find((ay) => ay.year_id === row.start_year_id)?.label ||
+        academicYears.find((ay) => (ay.academic_year_id || ay.year_id) === row.start_year_id)?.year_label ||
+        academicYears.find((ay) => (ay.academic_year_id || ay.year_id) === row.start_year_id)?.label ||
         "—",
     },
     {
@@ -1476,111 +1389,6 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
     },
   ];
 
-  const slotColumns = [
-    {
-      header: "Day & Time",
-      key: "schedule",
-      className: "w-32",
-      render: (row) => {
-        const dayObj = DAYS_OF_WEEK.find((d) => d.id === Number(row.day_of_week));
-        return (
-          <div>
-            <div className="font-bold text-gray-900">{dayObj ? dayObj.name : `Day ${row.day_of_week}`}</div>
-            <div className="font-mono text-xs text-gray-500">
-              {row.start_time?.slice(0, 5)} - {row.end_time?.slice(0, 5)}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      header: "Subject & Curriculum",
-      key: "subject",
-      wrap: true,
-      className: "min-w-[180px] max-w-[260px]",
-            render: (row) => {
-        const style = deliveryStyleOf(row);
-        return (
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className={`rounded px-2 py-0.5 font-mono text-xs font-bold ${style.code}`}>
-                {row.subject_code}
-              </span>
-              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.chip}`}>
-                {style.label}
-              </span>
-            </div>
-            <div className="mt-0.5 text-xs text-gray-900 font-semibold">{row.subject_name}</div>
-          </div>
-        );
-      },
-    },
-    {
-      header: "Academic Hierarchy",
-      key: "hierarchy",
-      wrap: true,
-      className: "min-w-[200px] max-w-[280px]",
-      render: (row) => (
-        <div className="text-xs">
-          <div className="font-bold text-gray-900">
-            Section {row.section_code} • {row.batch_label ? `Batch ${row.batch_label}` : "General"}
-          </div>
-          <div className="text-gray-500">
-            {row.programme_name ? `${row.programme_name} • ` : ""}
-            {row.department_name || ""} ({row.school_code || ""})
-          </div>
-        </div>
-      ),
-    },
-    {
-      header: "Faculty & Classroom",
-      key: "assigned",
-      className: "min-w-[150px]",
-      render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-gray-800">{row.faculty_name}</div>
-          <div className="text-gray-500">
-            Room {row.room_no} {row.block_name ? `(${row.block_name})` : ""}
-          </div>
-        </div>
-      ),
-    },
-    {
-      header: "Status",
-      key: "is_active",
-      className: "w-24",
-      render: (row) => <Badge status={row.is_active ? "ACTIVE" : "INACTIVE"} />,
-    },
-    {
-      header: "Actions",
-      key: "actions",
-      align: "right",
-      className: "w-20 text-right",
-      render: (row) => (
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => handleOpenEditSlot(row)}
-            className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-green-800"
-            title="Edit Slot"
-          >
-            <PencilSquareIcon className="h-4 w-4" />
-          </button>
-          {row.is_active === 1 && (
-            <button
-              type="button"
-              onClick={() => handleDeleteSlot(row)}
-              className="rounded-md p-1 text-gray-500 hover:bg-red-50 hover:text-red-700"
-              title="Remove Slot"
-            >
-              <TrashIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-6">
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
@@ -1791,184 +1599,21 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
             <LoadingSpinner message="Loading hierarchical academic records..." />
           </div>
         ) : activeTab === "timetable" ? (
-          <div>
-            {/* Cascading 5-Tier Hierarchy Filter Header */}
-            <div className="border-b border-gray-100 bg-gray-50/60 p-4">
-              <div className="flex items-center justify-between pb-3">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-700">
-                  <FunnelIcon className="h-4 w-4 text-green-800" />
-                  Hierarchical Academic Filters
-                </div>
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-green-800 hover:text-green-950"
-                >
-                  <ArrowPathIcon className="h-3.5 w-3.5" /> Reset All Filters
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-                {/* 1. School */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    1. School
-                  </label>
-                  <select
-                    value={filterSchool}
-                    onChange={(e) => {
-                      setFilterSchool(e.target.value);
-                      setFilterDepartment("ALL");
-                      setFilterProgram("ALL");
-                      setFilterBatch("ALL");
-                      setFilterSection("ALL");
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-green-600 focus:outline-none"
-                  >
-                    <option value="ALL">All Schools ({schools.length})</option>
-                    {schools.map((s) => (
-                      <option key={s.school_id} value={s.school_id}>
-                        {s.code} - {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 2. Department */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    2. Department
-                  </label>
-                  <select
-                    value={filterDepartment}
-                    onChange={(e) => {
-                      setFilterDepartment(e.target.value);
-                      setFilterProgram("ALL");
-                      setFilterBatch("ALL");
-                      setFilterSection("ALL");
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-green-600 focus:outline-none"
-                  >
-                    <option value="ALL">All Departments ({filteredDepartments.length})</option>
-                    {filteredDepartments.map((d) => (
-                      <option key={d.department_id} value={d.department_id}>
-                        {d.code ? `[${d.code}] ` : ""}
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 3. Program */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    3. Program
-                  </label>
-                  <select
-                    value={filterProgram}
-                    onChange={(e) => {
-                      setFilterProgram(e.target.value);
-                      setFilterBatch("ALL");
-                      setFilterSection("ALL");
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-green-600 focus:outline-none"
-                  >
-                    <option value="ALL">All Programs ({filteredPrograms.length})</option>
-                    {filteredPrograms.map((p) => (
-                      <option key={p.programme_id} value={p.programme_id}>
-                        {p.programme_code ? `[${p.programme_code}] ` : ""}
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 4. Batch */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    4. Batch
-                  </label>
-                  <select
-                    value={filterBatch}
-                    onChange={(e) => {
-                      setFilterBatch(e.target.value);
-                      setFilterSection("ALL");
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-green-600 focus:outline-none"
-                  >
-                    <option value="ALL">All Batches ({filteredBatches.length})</option>
-                    {filteredBatches.map((b) => (
-                      <option key={b.batch_id} value={b.batch_id}>
-                        Batch {b.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 5. Section */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    5. Section
-                  </label>
-                  <select
-                    value={filterSection}
-                    onChange={(e) => setFilterSection(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-green-600 focus:outline-none"
-                  >
-                    <option value="ALL">All Sections ({filteredSections.length})</option>
-                    {filteredSections.map((s) => (
-                      <option key={s.section_id} value={s.section_id}>
-                        Sec {s.section_code} ({s.subject_code || `Off #${s.offering_id}`})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 6. Day Filter */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    Day of Week
-                  </label>
-                  <select
-                    value={dayFilter}
-                    onChange={(e) => setDayFilter(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-green-600 focus:outline-none"
-                  >
-                    <option value="ALL">All Days</option>
-                    {DAYS_OF_WEEK.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Timetable Table */}
-            <DataTable
-              key="academics-timetable-table"
-              data={filteredTimetableSlots}
-              columns={slotColumns}
-              searchable
-              searchPlaceholder="Search timetable slots by subject, room, faculty, or section..."
-              emptyMessage="No timetable slots found matching the selected hierarchical filters."
-              emptyAction={
-                (filterSchool !== "ALL" ||
-                  filterDepartment !== "ALL" ||
-                  filterProgram !== "ALL" ||
-                  filterBatch !== "ALL" ||
-                  filterSection !== "ALL" ||
-                  dayFilter !== "ALL") && (
-                  <button
-                    type="button"
-                    onClick={handleResetFilters}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-800 bg-white px-3 py-1.5 text-xs font-semibold text-green-800 shadow-xs hover:bg-green-50 transition"
-                  >
-                    Reset Hierarchy Filters
-                  </button>
-                )
-              }
+          <div className="p-4 sm:p-6">
+            <AdminTimetableWorkspace
+              timetableSlots={timetableSlots}
+              schools={schools}
+              departments={departments}
+              programs={programs}
+              batches={batches}
+              sections={sections}
+              offerings={offerings}
+              subjects={subjects}
+              classroomList={classroomList}
+              facultyList={facultyList}
+              onOpenCreateSlot={handleOpenCreateSlot}
+              onOpenEditSlot={handleOpenEditSlot}
+              onDeleteSlot={handleDeleteSlot}
             />
           </div>
         ) : activeTab === "sections" ? (
@@ -2345,15 +1990,18 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
             <select
               required
               value={batchForm.start_year_id}
-              onChange={(e) => setBatchForm({ ...batchForm, start_year_id: Number(e.target.value) })}
+              onChange={(e) => setBatchForm({ ...batchForm, start_year_id: e.target.value ? Number(e.target.value) : "" })}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
             >
               <option value="">Select Academic Year</option>
-              {academicYears.map((ay) => (
-                <option key={ay.year_id} value={ay.year_id}>
-                  {ay.year_label || ay.label} {ay.is_current ? "(Current)" : ""}
-                </option>
-              ))}
+              {academicYears.map((ay) => {
+                const ayId = ay.academic_year_id || ay.year_id;
+                return (
+                  <option key={ayId} value={ayId}>
+                    {ay.year_label || ay.label} {ay.is_current ? "(Current)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -2549,11 +2197,14 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
             >
               <option value="">Unassigned</option>
-              {facultyList.map((f) => (
-                <option key={f.faculty_id} value={f.faculty_id}>
-                  {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`})
-                </option>
-              ))}
+              {facultyList.map((f) => {
+                const isInactive = f.is_active === 0 || f.is_active === false;
+                return (
+                  <option key={f.faculty_id} value={f.faculty_id} disabled={isInactive}>
+                    {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`}){isInactive ? " — [Inactive / Resigned]" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -2723,11 +2374,14 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
                   onChange={(e) => setSlotForm({ ...slotForm, faculty_id: Number(e.target.value) })}
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
                 >
-                  {facultyList.map((f) => (
-                    <option key={f.faculty_id} value={f.faculty_id}>
-                      {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`})
-                    </option>
-                  ))}
+                  {facultyList.map((f) => {
+                    const isInactive = f.is_active === 0 || f.is_active === false;
+                    return (
+                      <option key={f.faculty_id} value={f.faculty_id} disabled={isInactive}>
+                        {f.full_name} ({f.employee_code || `FAC#${f.faculty_id}`}){isInactive ? " — [Inactive / Resigned]" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

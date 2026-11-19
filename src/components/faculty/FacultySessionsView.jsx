@@ -32,6 +32,14 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const formatAttendanceSource = (source) => {
+  if (source === "DEVICE") return "Digital Check-in";
+  if (source === "MANUAL") return "Faculty Manual";
+  if (source === "SYSTEM_CLOSE") return "System Close";
+  if (source === "CORRECTION") return "Approved Correction";
+  return source || "Manual";
+};
+
 export function FacultySessionsView({ token }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(Boolean(token));
@@ -697,10 +705,9 @@ export function FacultySessionsView({ token }) {
                         {student.full_name}
                       </div>
                       {student.marked_at && (
-                        <div className="text-[10px] text-gray-400">
+                        <div className="text-[10px] text-gray-500 font-medium">
                           Marked:{" "}
-                          {new Date(student.marked_at).toLocaleTimeString()} (
-                          {student.source || "MANUAL"})
+                          {new Date(student.marked_at).toLocaleTimeString()} ({formatAttendanceSource(student.source)})
                         </div>
                       )}
                     </div>

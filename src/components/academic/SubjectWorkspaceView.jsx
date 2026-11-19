@@ -28,6 +28,7 @@ import { getFaculty } from "../../api/admin";
 import Modal from "../common/Modal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import MaterialViewerModal from "./MaterialViewerModal";
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
@@ -48,6 +49,7 @@ import {
   BuildingOffice2Icon,
   QuestionMarkCircleIcon,
   DocumentPlusIcon,
+  ArrowDownTrayIcon,
   CheckCircleIcon,
   InformationCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -107,20 +109,15 @@ function getMaterialTypeBadge(type) {
   }
 }
 
-export function SubjectWorkspaceView({
-  token,
-  user,
-  subjectId,
-  onBack,
-}) {
+export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
   const isAdmin = user?.role === "ADMIN";
   const isHOD = Boolean(
     user?.is_hod ||
-      /head\s+of\s+department|\bhod/i.test(user?.designation || "") ||
-      /head\s+of\s+department|\bhod/i.test(user?.designation_name || "") ||
-      /head\s+of\s+department|\bhod/i.test(user?.in_charge_class || "") ||
-      /head\s+of\s+department|\bhod/i.test(user?.name || "") ||
-      /head\s+of\s+department|\bhod/i.test(user?.registerNo || "")
+    /head\s+of\s+department|\bhod/i.test(user?.designation || "") ||
+    /head\s+of\s+department|\bhod/i.test(user?.designation_name || "") ||
+    /head\s+of\s+department|\bhod/i.test(user?.in_charge_class || "") ||
+    /head\s+of\s+department|\bhod/i.test(user?.name || "") ||
+    /head\s+of\s+department|\bhod/i.test(user?.registerNo || ""),
   );
 
   // Tab State: 'overview' | 'units' | 'materials' | 'quiz' | 'questions' | 'staff'
@@ -181,7 +178,10 @@ export function SubjectWorkspaceView({
   });
 
   const [showAiGenModal, setShowAiGenModal] = useState(false);
-  const [aiGenForm, setAiGenForm] = useState({ count: 5, difficulty: "Medium" });
+  const [aiGenForm, setAiGenForm] = useState({
+    count: 5,
+    difficulty: "Medium",
+  });
   const [aiJobStatus, setAiJobStatus] = useState("idle");
   const [aiDraftQuestions, setAiDraftQuestions] = useState([]);
 
@@ -191,6 +191,7 @@ export function SubjectWorkspaceView({
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [versionSnapshots, setVersionSnapshots] = useState([]);
   const [inspectingMaterial, setInspectingMaterial] = useState(null);
+  const [viewingMaterial, setViewingMaterial] = useState(null);
 
   // Question Filters
   const [questionSearch, setQuestionSearch] = useState("");
@@ -200,9 +201,10 @@ export function SubjectWorkspaceView({
   // Determine Staff Management Authority (Admin or HOD of this subject's department)
   const canManageStaff = Boolean(
     isAdmin ||
-      (isHOD &&
-        subjectDetails &&
-        parseInt(user?.department_id, 10) === parseInt(subjectDetails.owner_department_id, 10))
+    (isHOD &&
+      subjectDetails &&
+      parseInt(user?.department_id, 10) ===
+        parseInt(subjectDetails.owner_department_id, 10)),
   );
 
   // 1. Fetch Subject Details and Staff
@@ -223,7 +225,10 @@ export function SubjectWorkspaceView({
         }
       } catch (err) {
         if (!active) return;
-        setFeedback({ type: "error", message: err.message || "Could not load subject details" });
+        setFeedback({
+          type: "error",
+          message: err.message || "Could not load subject details",
+        });
       } finally {
         if (active) setLoading(false);
       }
@@ -247,7 +252,11 @@ export function SubjectWorkspaceView({
         const list = Array.isArray(res?.data) ? res.data : [];
         setTopics(list);
         if (list.length > 0) {
-          setSelectedTopic((prev) => (prev ? list.find((t) => t.topic_id === prev.topic_id) || list[0] : list[0]));
+          setSelectedTopic((prev) =>
+            prev
+              ? list.find((t) => t.topic_id === prev.topic_id) || list[0]
+              : list[0],
+          );
         }
       } catch (err) {
         console.warn("Could not load topics:", err);
@@ -282,19 +291,24 @@ export function SubjectWorkspaceView({
         setMaterials(
           matRes.status === "fulfilled" && Array.isArray(matRes.value?.data)
             ? matRes.value.data
-            : []
+            : [],
         );
 
         setQuiz(
           quizRes.status === "fulfilled" && quizRes.value?.data
-            ? quizRes.value.data
-            : null
+            ? {
+                ...quizRes.value.data,
+                description: quizRes.value.data.description || "",
+                available_from: quizRes.value.data.open_at || quizRes.value.data.available_from || "",
+                due_date: quizRes.value.data.close_at || quizRes.value.data.due_date || "",
+              }
+            : null,
         );
 
         setQuestions(
           qRes.status === "fulfilled" && Array.isArray(qRes.value?.data)
             ? qRes.value.data
-            : []
+            : [],
         );
       } catch (err) {
         console.warn("Failed loading topic details:", err);
@@ -344,18 +358,29 @@ export function SubjectWorkspaceView({
       setShowTopicModal(false);
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to save topic unit" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to save topic unit",
+      });
     }
   };
 
   const handleDeleteTopic = async (topicId) => {
-    if (!window.confirm("Delete this unit? All materials and quizzes in it will be removed.")) return;
+    if (
+      !window.confirm(
+        "Delete this unit? All materials and quizzes in it will be removed.",
+      )
+    )
+      return;
     try {
       await deleteTopic(token, topicId);
       setFeedback({ type: "success", message: "Topic unit deleted" });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to delete topic" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to delete topic",
+      });
     }
   };
 
@@ -371,13 +396,19 @@ export function SubjectWorkspaceView({
     newTopics[idx] = newTopics[targetIdx];
     newTopics[targetIdx] = temp;
 
-    const payload = newTopics.map((t, i) => ({ topic_id: t.topic_id, position: i + 1 }));
+    const payload = newTopics.map((t, i) => ({
+      topic_id: t.topic_id,
+      position: i + 1,
+    }));
     setTopics(newTopics.map((t, i) => ({ ...t, position: i + 1 })));
 
     try {
       await reorderTopics(token, subjectId, payload);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to reorder topics" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to reorder topics",
+      });
       setRefreshKey((k) => k + 1);
     }
   };
@@ -422,12 +453,18 @@ export function SubjectWorkspaceView({
         setIsUploading(false);
         setUploadProgress(0);
         setShowMaterialModal(false);
-        setFeedback({ type: "success", message: "Study material added to course unit" });
+        setFeedback({
+          type: "success",
+          message: "Study material added to course unit",
+        });
         setRefreshKey((k) => k + 1);
       }, 400);
     } catch (err) {
       setIsUploading(false);
-      setFeedback({ type: "error", message: err.message || "Failed to upload material" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to upload material",
+      });
     }
   };
 
@@ -435,21 +472,31 @@ export function SubjectWorkspaceView({
     const nextStatus = currentStatus === "Published" ? "Draft" : "Published";
     try {
       await togglePublishMaterial(token, materialId, nextStatus);
-      setFeedback({ type: "success", message: `Material ${nextStatus.toLowerCase()}` });
+      setFeedback({
+        type: "success",
+        message: `Material ${nextStatus.toLowerCase()}`,
+      });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to update material" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to update material",
+      });
     }
   };
 
   const handleDeleteMaterial = async (materialId) => {
-    if (!window.confirm("Are you sure you want to delete this study material?")) return;
+    if (!window.confirm("Are you sure you want to delete this study material?"))
+      return;
     try {
       await deleteMaterial(token, materialId);
       setFeedback({ type: "success", message: "Material deleted" });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to delete material" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to delete material",
+      });
     }
   };
 
@@ -464,7 +511,10 @@ export function SubjectWorkspaceView({
       }
       setShowVersionsModal(true);
     } catch {
-      setFeedback({ type: "error", message: "Could not load material version history" });
+      setFeedback({
+        type: "error",
+        message: "Could not load material version history",
+      });
     }
   };
 
@@ -477,7 +527,10 @@ export function SubjectWorkspaceView({
         alert("Download URL could not be generated");
       }
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to generate signed download link" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to generate signed download link",
+      });
     }
   };
 
@@ -486,25 +539,56 @@ export function SubjectWorkspaceView({
   // -------------------------------------------------------------
   const handleSaveQuizSettings = async (e) => {
     e.preventDefault();
-    if (!quiz?.quiz_id) return;
+    if (!selectedTopic?.topic_id) return;
 
     try {
-      await updateTopicQuiz(token, quiz.quiz_id, {
+      await updateTopicQuiz(token, selectedTopic.topic_id, {
         title: quiz.title,
-        status: quiz.status,
+        description: quiz.description || null,
+        status: quiz.status || "Draft",
         time_limit: parseInt(quiz.time_limit, 10) || 30,
         pass_mark: parseFloat(quiz.pass_mark) || 50,
         max_attempts: parseInt(quiz.max_attempts, 10) || 3,
-        available_from: quiz.available_from,
-        due_date: quiz.due_date,
-        questions_to_draw: quiz.questions_to_draw ? parseInt(quiz.questions_to_draw, 10) : null,
+        open_at: quiz.available_from || null,
+        close_at: quiz.due_date || null,
+        available_from: quiz.available_from || null,
+        due_date: quiz.due_date || null,
+        questions_to_draw: quiz.questions_to_draw
+          ? parseInt(quiz.questions_to_draw, 10)
+          : null,
         shuffle_questions: quiz.shuffle_questions ? 1 : 0,
         shuffle_options: quiz.shuffle_options ? 1 : 0,
       });
-      setFeedback({ type: "success", message: "Quiz settings & schedule saved" });
+      setFeedback({
+        type: "success",
+        message: "Quiz configuration & settings saved successfully",
+      });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to update quiz settings" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to save quiz configuration",
+      });
+    }
+  };
+
+  const handleCreateOrOpenQuizForTopic = (topic) => {
+    setSelectedTopic(topic);
+    setActiveTab("quiz");
+    if (!topic.quiz_id) {
+      setQuiz({
+        title: `${topic.title} Assessment Quiz`,
+        description: `Assessment for ${topic.title}. Test your understanding of core concepts and applications.`,
+        status: "Draft",
+        time_limit: 30,
+        pass_mark: 50,
+        max_attempts: 3,
+        questions_to_draw: "",
+        shuffle_questions: 1,
+        shuffle_options: 1,
+        available_from: "",
+        due_date: "",
+      });
     }
   };
 
@@ -546,10 +630,17 @@ export function SubjectWorkspaceView({
       answer = questionForm.correct_option || "A";
     } else if (normalizedType === "TrueFalse") {
       options = ["True", "False"];
-      answer = questionForm.correct_option || "True";
+      answer = questionForm.correct_option === "False" ? "False" : "True";
     } else {
-      options = null;
-      answer = questionForm.correct_option || questionForm.explanation || "N/A";
+      options = [];
+      answer = String(questionForm.correct_option || "").trim();
+      if (!answer) {
+        setFeedback({
+          type: "error",
+          message: "Please enter the expected correct answer for this Short Answer question.",
+        });
+        return;
+      }
     }
 
     const payload = {
@@ -570,23 +661,33 @@ export function SubjectWorkspaceView({
         setFeedback({ type: "success", message: "Question updated" });
       } else {
         await createQuestion(token, selectedTopic.topic_id, payload);
-        setFeedback({ type: "success", message: "Question created in question bank" });
+        setFeedback({
+          type: "success",
+          message: "Question created in question bank",
+        });
       }
       setShowQuestionModal(false);
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to save question" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to save question",
+      });
     }
   };
 
   const handleDeleteQuestion = async (qId) => {
-    if (!window.confirm("Archive this question from the question bank?")) return;
+    if (!window.confirm("Archive this question from the question bank?"))
+      return;
     try {
       await deleteQuestion(token, qId);
       setFeedback({ type: "success", message: "Question removed" });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to delete question" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to delete question",
+      });
     }
   };
 
@@ -612,7 +713,11 @@ export function SubjectWorkspaceView({
             if (jobRes?.data?.status === "COMPLETED") {
               clearInterval(pollInterval);
               setAiJobStatus("completed");
-              setAiDraftQuestions(Array.isArray(jobRes.data.draft_questions) ? jobRes.data.draft_questions : []);
+              setAiDraftQuestions(
+                Array.isArray(jobRes.data.draft_questions)
+                  ? jobRes.data.draft_questions
+                  : [],
+              );
             } else if (jobRes?.data?.status === "FAILED") {
               clearInterval(pollInterval);
               setAiJobStatus("failed");
@@ -627,13 +732,17 @@ export function SubjectWorkspaceView({
       }
     } catch (err) {
       setAiJobStatus("failed");
-      setFeedback({ type: "error", message: err.message || "AI job initiation failed" });
+      setFeedback({
+        type: "error",
+        message: err.message || "AI job initiation failed",
+      });
     }
   };
 
   const handleImportDraftQuestion = async (draft) => {
     try {
-      const answer = draft.answer || draft.correct_answer || draft.correct_option || "A";
+      const answer =
+        draft.answer || draft.correct_answer || draft.correct_option || "A";
       await createQuestion(token, selectedTopic.topic_id, {
         text: draft.text,
         type: draft.type || "MCQ",
@@ -646,10 +755,16 @@ export function SubjectWorkspaceView({
         explanation: draft.explanation,
       });
       setAiDraftQuestions((prev) => prev.filter((d) => d !== draft));
-      setFeedback({ type: "success", message: "Draft imported to question bank" });
+      setFeedback({
+        type: "success",
+        message: "Draft imported to question bank",
+      });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed importing question" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed importing question",
+      });
     }
   };
 
@@ -668,22 +783,36 @@ export function SubjectWorkspaceView({
         faculty_id: parseInt(staffForm.faculty_id, 10),
         role: staffForm.role,
       });
-      setFeedback({ type: "success", message: "Faculty member assigned to course" });
+      setFeedback({
+        type: "success",
+        message: "Faculty member assigned to course",
+      });
       setShowStaffModal(false);
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to assign staff member" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to assign staff member",
+      });
     }
   };
 
   const handleRemoveStaff = async (assignmentId) => {
-    if (!window.confirm("Remove this faculty member's assignment from the course?")) return;
+    if (
+      !window.confirm(
+        "Remove this faculty member's assignment from the course?",
+      )
+    )
+      return;
     try {
       await removeStaffAssignment(token, subjectId, assignmentId);
       setFeedback({ type: "success", message: "Faculty assignment removed" });
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed to remove staff assignment" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to remove staff assignment",
+      });
     }
   };
 
@@ -702,7 +831,10 @@ export function SubjectWorkspaceView({
         setShowPreviewModal(true);
       }
     } catch (err) {
-      setFeedback({ type: "error", message: err.message || "Failed loading student preview" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed loading student preview",
+      });
     }
   };
 
@@ -743,7 +875,9 @@ export function SubjectWorkspaceView({
             <span className="text-gray-300">/</span>
             <span className="text-gray-400">Course Workspace</span>
             <span className="text-gray-300">/</span>
-            <span className="font-semibold text-gray-800">{sub.code || sub.subject_code}</span>
+            <span className="font-semibold text-gray-800">
+              {sub.code || sub.subject_code}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -817,20 +951,36 @@ export function SubjectWorkspaceView({
           {/* Quick Metrics Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center shrink-0">
             <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 min-w-[90px]">
-              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">Units</p>
-              <p className="text-lg font-bold text-emerald-900 mt-0.5">{sub.total_topics || topics.length}</p>
+              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
+                Units
+              </p>
+              <p className="text-lg font-bold text-emerald-900 mt-0.5">
+                {sub.total_topics || topics.length}
+              </p>
             </div>
             <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 min-w-[90px]">
-              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">Materials</p>
-              <p className="text-lg font-bold text-emerald-900 mt-0.5">{sub.total_materials || 0}</p>
+              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
+                Materials
+              </p>
+              <p className="text-lg font-bold text-emerald-900 mt-0.5">
+                {sub.total_materials || 0}
+              </p>
             </div>
             <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 min-w-[90px]">
-              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">Quizzes</p>
-              <p className="text-lg font-bold text-emerald-900 mt-0.5">{sub.total_quizzes || 0}</p>
+              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
+                Quizzes
+              </p>
+              <p className="text-lg font-bold text-emerald-900 mt-0.5">
+                {sub.total_quizzes || 0}
+              </p>
             </div>
             <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 min-w-[90px]">
-              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">Faculty</p>
-              <p className="text-lg font-bold text-emerald-900 mt-0.5">{staffList.length}</p>
+              <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
+                Faculty
+              </p>
+              <p className="text-lg font-bold text-emerald-900 mt-0.5">
+                {staffList.length}
+              </p>
             </div>
           </div>
         </div>
@@ -840,11 +990,31 @@ export function SubjectWorkspaceView({
           <nav className="flex items-center gap-2 overflow-x-auto pb-1">
             {[
               { id: "overview", label: "Overview", icon: BookOpenIcon },
-              { id: "units", label: `Course Units (${topics.length})`, icon: DocumentTextIcon },
-              { id: "materials", label: `Study Materials (${materials.length})`, icon: DocumentPlusIcon },
-              { id: "quiz", label: "Quiz Settings & Schedule", icon: CalendarDaysIcon },
-              { id: "questions", label: `Question Bank (${questions.length})`, icon: QuestionMarkCircleIcon },
-              { id: "staff", label: `Teaching Staff (${staffList.length})`, icon: UserGroupIcon },
+              {
+                id: "units",
+                label: `Course Units (${topics.length})`,
+                icon: DocumentTextIcon,
+              },
+              {
+                id: "materials",
+                label: `Study Materials (${materials.length})`,
+                icon: DocumentPlusIcon,
+              },
+              {
+                id: "quiz",
+                label: "Quiz Settings & Schedule",
+                icon: CalendarDaysIcon,
+              },
+              {
+                id: "questions",
+                label: `Question Bank (${questions.length})`,
+                icon: QuestionMarkCircleIcon,
+              },
+              {
+                id: "staff",
+                label: `Teaching Staff (${staffList.length})`,
+                icon: UserGroupIcon,
+              },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -893,13 +1063,14 @@ export function SubjectWorkspaceView({
 
                 {topics.length === 0 ? (
                   <p className="text-xs text-gray-500 italic py-4">
-                    No curriculum units have been defined for this course yet. Switch to the Course Units tab to add the first unit.
+                    No curriculum units have been defined for this course yet.
+                    Switch to the Course Units tab to add the first unit.
                   </p>
                 ) : (
                   <div className="divide-y divide-gray-100">
                     {topics.map((t, idx) => (
                       <div
-                        key={t.topic_id}
+                        key={t.topic_id || `topic_${idx}`}
                         className="py-3 flex items-start justify-between gap-4"
                       >
                         <div className="space-y-1">
@@ -978,7 +1149,8 @@ export function SubjectWorkspaceView({
                           </span>
                         </div>
                         <p className="text-[11px] text-gray-500">
-                          {st.designation_name || "Faculty Member"} • {st.employee_code}
+                          {st.designation_name || "Faculty Member"} •{" "}
+                          {st.employee_code}
                         </p>
                         {st.email && (
                           <p className="text-[11px] text-emerald-700 truncate">
@@ -1006,7 +1178,8 @@ export function SubjectWorkspaceView({
                 Syllabus Course Units
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Organize learning topics in sequential curriculum units. Each unit holds materials, quizzes, and questions.
+                Organize learning topics in sequential curriculum units. Each
+                unit holds materials, quizzes, and questions.
               </p>
             </div>
 
@@ -1027,8 +1200,12 @@ export function SubjectWorkspaceView({
           {topics.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl">
               <DocumentTextIcon className="w-10 h-10 text-gray-300 mx-auto" />
-              <p className="text-sm font-semibold text-gray-700 mt-2">No units yet</p>
-              <p className="text-xs text-gray-500 mt-1">Click "Add Course Unit" above to create Unit 01.</p>
+              <p className="text-sm font-semibold text-gray-700 mt-2">
+                No units yet
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Click "Add Course Unit" above to create Unit 01.
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1049,7 +1226,9 @@ export function SubjectWorkspaceView({
                         <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300">
                           Unit {String(idx + 1).padStart(2, "0")}
                         </span>
-                        <h4 className="text-sm font-bold text-gray-900">{t.title}</h4>
+                        <h4 className="text-sm font-bold text-gray-900">
+                          {t.title}
+                        </h4>
                         {isSelected && (
                           <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                             Active in Workspace
@@ -1057,18 +1236,34 @@ export function SubjectWorkspaceView({
                         )}
                       </div>
                       {t.description && (
-                        <p className="text-xs text-gray-600 max-w-xl">{t.description}</p>
+                        <p className="text-xs text-gray-600 max-w-xl">
+                          {t.description}
+                        </p>
                       )}
                       <div className="flex items-center gap-3 text-xs text-gray-500 pt-1">
                         <span>{t.total_materials || 0} Materials</span>
                         <span>•</span>
                         <span>{t.approved_questions || 0} Questions</span>
                         <span>•</span>
-                        <span>{t.quiz_id ? `Quiz Pass Mark: ${t.quiz_pass_mark || 50}%` : "No Quiz"}</span>
+                        <span>
+                          {t.quiz_id
+                            ? `Quiz Pass Mark: ${t.quiz_pass_mark || 50}%`
+                            : "No Quiz"}
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCreateOrOpenQuizForTopic(t)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition"
+                        title="Create or configure assessment quiz for this course unit"
+                      >
+                        <SparklesIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{t.quiz_id ? "Configure Quiz" : "Create Quiz"}</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => setSelectedTopic(t)}
@@ -1108,7 +1303,10 @@ export function SubjectWorkspaceView({
                         type="button"
                         onClick={() => {
                           setEditingTopic(t);
-                          setTopicForm({ title: t.title, description: t.description || "" });
+                          setTopicForm({
+                            title: t.title,
+                            description: t.description || "",
+                          });
                           setShowTopicModal(true);
                         }}
                         className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50"
@@ -1149,7 +1347,9 @@ export function SubjectWorkspaceView({
               <select
                 value={selectedTopic?.topic_id || ""}
                 onChange={(e) => {
-                  const found = topics.find((t) => String(t.topic_id) === String(e.target.value));
+                  const found = topics.find(
+                    (t) => String(t.topic_id) === String(e.target.value),
+                  );
                   if (found) setSelectedTopic(found);
                 }}
                 className="py-1.5 px-3 text-xs font-semibold rounded-lg border border-gray-300 bg-white text-gray-900 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
@@ -1188,8 +1388,12 @@ export function SubjectWorkspaceView({
           {materials.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl">
               <DocumentTextIcon className="w-10 h-10 text-gray-300 mx-auto" />
-              <p className="text-sm font-semibold text-gray-700 mt-2">No study materials in this unit</p>
-              <p className="text-xs text-gray-500 mt-1">Upload slides, documents, or lecture notes for students.</p>
+              <p className="text-sm font-semibold text-gray-700 mt-2">
+                No study materials in this unit
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Upload slides, documents, or lecture notes for students.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1204,7 +1408,9 @@ export function SubjectWorkspaceView({
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.color}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.color}`}
+                        >
                           <BadgeIcon className="w-3.5 h-3.5" />
                           <span>{badge.label}</span>
                         </span>
@@ -1216,11 +1422,13 @@ export function SubjectWorkspaceView({
                             </span>
                           ) : null}
 
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                            mat.status === "Published"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-gray-100 text-gray-600"
-                          }`}>
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              mat.status === "Published"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
                             {mat.status}
                           </span>
                         </div>
@@ -1238,13 +1446,26 @@ export function SubjectWorkspaceView({
 
                     <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        {/* Signed Download */}
+                        {/* View In-App */}
+                        <button
+                          type="button"
+                          onClick={() => setViewingMaterial(mat)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition"
+                          title="Preview study material"
+                        >
+                          <EyeIcon className="w-3.5 h-3.5" />
+                          <span>View</span>
+                        </button>
+
+                        {/* Download File */}
                         <button
                           type="button"
                           onClick={() => handleSignedDownload(mat)}
-                          className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                          title="Download study material"
                         >
-                          Signed URL
+                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                          <span>Download</span>
                         </button>
 
                         {/* Version History */}
@@ -1252,6 +1473,7 @@ export function SubjectWorkspaceView({
                           type="button"
                           onClick={() => handleInspectVersions(mat)}
                           className="px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition"
+                          title="View revision versions"
                         >
                           Versions
                         </button>
@@ -1261,7 +1483,9 @@ export function SubjectWorkspaceView({
                         {/* Publish/Unpublish Toggle */}
                         <button
                           type="button"
-                          onClick={() => handleTogglePublish(mat.material_id, mat.status)}
+                          onClick={() =>
+                            handleTogglePublish(mat.material_id, mat.status)
+                          }
                           className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition ${
                             mat.status === "Published"
                               ? "text-amber-800 bg-amber-50 hover:bg-amber-100"
@@ -1301,16 +1525,21 @@ export function SubjectWorkspaceView({
                 Unit Proctored Quiz Configuration
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Configure evaluation window, time limit, pass percentage, and anti-cheat randomization.
+                Configure evaluation window, time limit, pass percentage, and
+                anti-cheat randomization.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-gray-700">Unit:</label>
+              <label className="text-xs font-semibold text-gray-700">
+                Unit:
+              </label>
               <select
                 value={selectedTopic?.topic_id || ""}
                 onChange={(e) => {
-                  const found = topics.find((t) => String(t.topic_id) === String(e.target.value));
+                  const found = topics.find(
+                    (t) => String(t.topic_id) === String(e.target.value),
+                  );
                   if (found) setSelectedTopic(found);
                 }}
                 className="py-1 px-2.5 text-xs font-semibold rounded-lg border border-gray-300 bg-white"
@@ -1325,13 +1554,42 @@ export function SubjectWorkspaceView({
           </div>
 
           {!quiz ? (
-            <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl">
-              <CalendarDaysIcon className="w-10 h-10 text-gray-300 mx-auto" />
-              <p className="text-sm font-semibold text-gray-700 mt-2">No quiz initialized for this unit</p>
-              <p className="text-xs text-gray-500 mt-1">Please ensure curriculum units have quiz authoring enabled.</p>
+            <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl space-y-3 bg-gray-50/50">
+              <CalendarDaysIcon className="w-10 h-10 text-emerald-600 mx-auto" />
+              <p className="text-sm font-semibold text-gray-800">
+                No quiz initialized for {selectedTopic?.title || "this unit"}
+              </p>
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                Create an assessment quiz directly for this unit to test student learning outcomes and configure assessment parameters.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuiz({
+                    title: `${selectedTopic?.title || "Unit"} Assessment Quiz`,
+                    description: `Assessment for ${selectedTopic?.title || "this unit"}. Test your understanding of core concepts.`,
+                    status: "Draft",
+                    time_limit: 30,
+                    pass_mark: 50,
+                    max_attempts: 3,
+                    questions_to_draw: "",
+                    shuffle_questions: 1,
+                    shuffle_options: 1,
+                    available_from: "",
+                    due_date: "",
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition shadow-xs"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span>Initialize Quiz for {selectedTopic?.title || "Unit"}</span>
+              </button>
             </div>
           ) : (
-            <form onSubmit={handleSaveQuizSettings} className="space-y-6 max-w-2xl">
+            <form
+              onSubmit={handleSaveQuizSettings}
+              className="space-y-6 max-w-2xl"
+            >
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -1340,9 +1598,26 @@ export function SubjectWorkspaceView({
                   <input
                     type="text"
                     value={quiz.title || ""}
-                    onChange={(e) => setQuiz({ ...quiz, title: e.target.value })}
+                    onChange={(e) =>
+                      setQuiz({ ...quiz, title: e.target.value })
+                    }
                     className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Quiz Description & Student Instructions
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={quiz.description || ""}
+                    onChange={(e) =>
+                      setQuiz({ ...quiz, description: e.target.value })
+                    }
+                    placeholder="Instructions for students taking this assessment..."
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   />
                 </div>
 
@@ -1356,7 +1631,9 @@ export function SubjectWorkspaceView({
                       min="5"
                       max="180"
                       value={quiz.time_limit || 30}
-                      onChange={(e) => setQuiz({ ...quiz, time_limit: e.target.value })}
+                      onChange={(e) =>
+                        setQuiz({ ...quiz, time_limit: e.target.value })
+                      }
                       className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                       required
                     />
@@ -1371,7 +1648,9 @@ export function SubjectWorkspaceView({
                       min="1"
                       max="100"
                       value={quiz.pass_mark || 50}
-                      onChange={(e) => setQuiz({ ...quiz, pass_mark: e.target.value })}
+                      onChange={(e) =>
+                        setQuiz({ ...quiz, pass_mark: e.target.value })
+                      }
                       className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                       required
                     />
@@ -1386,7 +1665,9 @@ export function SubjectWorkspaceView({
                       min="1"
                       max="10"
                       value={quiz.max_attempts || 3}
-                      onChange={(e) => setQuiz({ ...quiz, max_attempts: e.target.value })}
+                      onChange={(e) =>
+                        setQuiz({ ...quiz, max_attempts: e.target.value })
+                      }
                       className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                       required
                     />
@@ -1401,7 +1682,14 @@ export function SubjectWorkspaceView({
                     <input
                       type="datetime-local"
                       value={toLocalDatetimeInput(quiz.available_from)}
-                      onChange={(e) => setQuiz({ ...quiz, available_from: fromLocalDatetimeInput(e.target.value) })}
+                      onChange={(e) =>
+                        setQuiz({
+                          ...quiz,
+                          available_from: fromLocalDatetimeInput(
+                            e.target.value,
+                          ),
+                        })
+                      }
                       className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300"
                     />
                   </div>
@@ -1413,7 +1701,12 @@ export function SubjectWorkspaceView({
                     <input
                       type="datetime-local"
                       value={toLocalDatetimeInput(quiz.due_date)}
-                      onChange={(e) => setQuiz({ ...quiz, due_date: fromLocalDatetimeInput(e.target.value) })}
+                      onChange={(e) =>
+                        setQuiz({
+                          ...quiz,
+                          due_date: fromLocalDatetimeInput(e.target.value),
+                        })
+                      }
                       className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300"
                     />
                   </div>
@@ -1429,11 +1722,13 @@ export function SubjectWorkspaceView({
                       min="1"
                       placeholder="e.g. 5 (Leave blank for all)"
                       value={quiz.questions_to_draw || ""}
-                      onChange={(e) => setQuiz({ ...quiz, questions_to_draw: e.target.value })}
+                      onChange={(e) =>
+                        setQuiz({ ...quiz, questions_to_draw: e.target.value })
+                      }
                       className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                     />
                     <p className="text-[10px] text-gray-500 mt-1">
-                      Randomly selects N questions from the pool for each student attempt.
+                      Anti-collusion randomization: randomly selects N questions from the pool for each student sitting (e.g. 10 out of 25). Leave blank to draw all questions.
                     </p>
                   </div>
 
@@ -1443,11 +1738,17 @@ export function SubjectWorkspaceView({
                     </label>
                     <select
                       value={quiz.status || "Draft"}
-                      onChange={(e) => setQuiz({ ...quiz, status: e.target.value })}
+                      onChange={(e) =>
+                        setQuiz({ ...quiz, status: e.target.value })
+                      }
                       className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                     >
-                      <option value="Draft">Draft (Hidden from students)</option>
-                      <option value="Published">Published (Active evaluation)</option>
+                      <option value="Draft">
+                        Draft (Hidden from students)
+                      </option>
+                      <option value="Published">
+                        Published (Active evaluation)
+                      </option>
                       <option value="Archived">Archived</option>
                     </select>
                   </div>
@@ -1459,7 +1760,12 @@ export function SubjectWorkspaceView({
                     <input
                       type="checkbox"
                       checked={Boolean(quiz.shuffle_questions)}
-                      onChange={(e) => setQuiz({ ...quiz, shuffle_questions: e.target.checked })}
+                      onChange={(e) =>
+                        setQuiz({
+                          ...quiz,
+                          shuffle_questions: e.target.checked,
+                        })
+                      }
                       className="rounded-sm border-gray-300 text-emerald-600 focus:ring-emerald-500"
                     />
                     <span>Shuffle questions sequence per candidate</span>
@@ -1469,7 +1775,9 @@ export function SubjectWorkspaceView({
                     <input
                       type="checkbox"
                       checked={Boolean(quiz.shuffle_options)}
-                      onChange={(e) => setQuiz({ ...quiz, shuffle_options: e.target.checked })}
+                      onChange={(e) =>
+                        setQuiz({ ...quiz, shuffle_options: e.target.checked })
+                      }
                       className="rounded-sm border-gray-300 text-emerald-600 focus:ring-emerald-500"
                     />
                     <span>Shuffle multiple-choice option keys (A-D)</span>
@@ -1500,7 +1808,8 @@ export function SubjectWorkspaceView({
                 Unit Question Bank
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Author manual questions or trigger the AI machine learning bridge to generate questions from curriculum notes.
+                Author manual questions or trigger the AI machine learning
+                bridge to generate questions from curriculum notes.
               </p>
             </div>
 
@@ -1581,14 +1890,18 @@ export function SubjectWorkspaceView({
           {filteredQuestions.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl">
               <QuestionMarkCircleIcon className="w-10 h-10 text-gray-300 mx-auto" />
-              <p className="text-sm font-semibold text-gray-700 mt-2">No questions found</p>
-              <p className="text-xs text-gray-500 mt-1">Use the "Add Question" button or generate questions with AI.</p>
+              <p className="text-sm font-semibold text-gray-700 mt-2">
+                No questions found
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Use the "Add Question" button or generate questions with AI.
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
               {filteredQuestions.map((q, idx) => (
                 <div
-                  key={q.question_id}
+                  key={q.question_id || q.id || `question_${idx}`}
                   className="rounded-xl border border-gray-200 bg-white p-4 space-y-2 hover:border-gray-300 transition shadow-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1596,13 +1909,15 @@ export function SubjectWorkspaceView({
                       <span className="text-xs font-bold text-gray-400">
                         #{idx + 1}
                       </span>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        q.difficulty === "Easy"
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : q.difficulty === "Hard"
-                            ? "bg-rose-50 text-rose-800 border border-rose-200"
-                            : "bg-amber-50 text-amber-800 border border-amber-200"
-                      }`}>
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          q.difficulty === "Easy"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : q.difficulty === "Hard"
+                              ? "bg-rose-50 text-rose-800 border border-rose-200"
+                              : "bg-amber-50 text-amber-800 border border-amber-200"
+                        }`}
+                      >
                         {q.difficulty}
                       </span>
                       <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
@@ -1622,21 +1937,31 @@ export function SubjectWorkspaceView({
                     </div>
                   </div>
 
-                  <p className="text-sm font-semibold text-gray-900">{q.text}</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {q.text}
+                  </p>
 
                   {/* Options Display */}
                   {Array.isArray(q.options) && q.options.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                       {q.options.map((opt, optIdx) => {
                         const optKey =
-                          typeof opt === "object" && opt !== null
+                          typeof opt === "object" && opt !== null && opt.key
                             ? opt.key
-                            : ["A", "B", "C", "D"][optIdx] || String(optIdx + 1);
-                        const optText = typeof opt === "object" && opt !== null ? opt.text : opt;
+                            : ["A", "B", "C", "D"][optIdx] ||
+                              String(optIdx + 1);
+                        const optText =
+                          typeof opt === "object" && opt !== null
+                            ? opt.text
+                            : opt;
                         const correctVal = q.correct_answer || q.answer || "";
                         const isCorrect =
-                          (optKey && String(optKey).toUpperCase() === String(correctVal).toUpperCase()) ||
-                          (optText && String(optText).trim().toLowerCase() === String(correctVal).trim().toLowerCase());
+                          (optKey &&
+                            String(optKey).toUpperCase() ===
+                              String(correctVal).toUpperCase()) ||
+                          (optText &&
+                            String(optText).trim().toLowerCase() ===
+                              String(correctVal).trim().toLowerCase());
                         return (
                           <div
                             key={optKey || `opt_${optIdx}`}
@@ -1647,7 +1972,9 @@ export function SubjectWorkspaceView({
                             }`}
                           >
                             <span>
-                              <span className="font-bold mr-1.5">{optKey}.</span>
+                              <span className="font-bold mr-1.5">
+                                {optKey}.
+                              </span>
                               {optText}
                             </span>
                             {isCorrect && (
@@ -1707,7 +2034,9 @@ export function SubjectWorkspaceView({
             <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-800 flex items-center gap-2">
               <InformationCircleIcon className="w-5 h-5 text-blue-600 shrink-0" />
               <span>
-                Staff assignments for this subject are managed by the Department Head ({sub.department_name || "CIS"}) and University Administration.
+                Staff assignments for this subject are managed by the Department
+                Head ({sub.department_name || "CIS"}) and University
+                Administration.
               </span>
             </div>
           )}
@@ -1715,8 +2044,12 @@ export function SubjectWorkspaceView({
           {staffList.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl">
               <UserGroupIcon className="w-10 h-10 text-gray-300 mx-auto" />
-              <p className="text-sm font-semibold text-gray-700 mt-2">No faculty assigned</p>
-              <p className="text-xs text-gray-500 mt-1">Use "Assign Teaching Staff" above to allocate instructors.</p>
+              <p className="text-sm font-semibold text-gray-700 mt-2">
+                No faculty assigned
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Use "Assign Teaching Staff" above to allocate instructors.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1727,8 +2060,12 @@ export function SubjectWorkspaceView({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="text-sm font-bold text-gray-900">{st.full_name}</h4>
-                      <p className="text-xs text-gray-500">{st.employee_code}</p>
+                      <h4 className="text-sm font-bold text-gray-900">
+                        {st.full_name}
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        {st.employee_code}
+                      </p>
                     </div>
 
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -1738,10 +2075,13 @@ export function SubjectWorkspaceView({
 
                   <div className="text-xs text-gray-600 space-y-1 pt-1">
                     <p>Designation: {st.designation_name || "Faculty"}</p>
-                    {st.email && <p className="truncate text-emerald-700">{st.email}</p>}
+                    {st.email && (
+                      <p className="truncate text-emerald-700">{st.email}</p>
+                    )}
                     {st.created_at && (
                       <p className="text-[10px] text-gray-400">
-                        Assigned on: {new Date(st.created_at).toLocaleDateString()}
+                        Assigned on:{" "}
+                        {new Date(st.created_at).toLocaleDateString()}
                       </p>
                     )}
                   </div>
@@ -1782,7 +2122,9 @@ export function SubjectWorkspaceView({
               <input
                 type="text"
                 value={topicForm.title}
-                onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })}
+                onChange={(e) =>
+                  setTopicForm({ ...topicForm, title: e.target.value })
+                }
                 placeholder="e.g. Unit 01: Introduction to Problem Solving"
                 className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                 required
@@ -1796,7 +2138,9 @@ export function SubjectWorkspaceView({
               <textarea
                 rows="3"
                 value={topicForm.description}
-                onChange={(e) => setTopicForm({ ...topicForm, description: e.target.value })}
+                onChange={(e) =>
+                  setTopicForm({ ...topicForm, description: e.target.value })
+                }
                 placeholder="Key concepts, syllabus scope, and course outcomes..."
                 className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
               />
@@ -1838,7 +2182,9 @@ export function SubjectWorkspaceView({
               <input
                 type="text"
                 value={materialForm.title}
-                onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
+                onChange={(e) =>
+                  setMaterialForm({ ...materialForm, title: e.target.value })
+                }
                 placeholder="e.g. Lecture 02 - Syntax, Variables and Scope"
                 className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                 required
@@ -1852,7 +2198,9 @@ export function SubjectWorkspaceView({
                 </label>
                 <select
                   value={materialForm.type}
-                  onChange={(e) => setMaterialForm({ ...materialForm, type: e.target.value })}
+                  onChange={(e) =>
+                    setMaterialForm({ ...materialForm, type: e.target.value })
+                  }
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300 bg-white"
                 >
                   <option value="PDF">PDF Document</option>
@@ -1868,7 +2216,9 @@ export function SubjectWorkspaceView({
                 </label>
                 <select
                   value={materialForm.status}
-                  onChange={(e) => setMaterialForm({ ...materialForm, status: e.target.value })}
+                  onChange={(e) =>
+                    setMaterialForm({ ...materialForm, status: e.target.value })
+                  }
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300 bg-white"
                 >
                   <option value="Published">Published (Available)</option>
@@ -1885,7 +2235,12 @@ export function SubjectWorkspaceView({
                 <textarea
                   rows="4"
                   value={materialForm.notes_content}
-                  onChange={(e) => setMaterialForm({ ...materialForm, notes_content: e.target.value })}
+                  onChange={(e) =>
+                    setMaterialForm({
+                      ...materialForm,
+                      notes_content: e.target.value,
+                    })
+                  }
                   placeholder="Paste Markdown or text notes..."
                   className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300"
                 />
@@ -1897,7 +2252,12 @@ export function SubjectWorkspaceView({
                 </label>
                 <input
                   type="file"
-                  onChange={(e) => setMaterialForm({ ...materialForm, file: e.target.files[0] })}
+                  onChange={(e) =>
+                    setMaterialForm({
+                      ...materialForm,
+                      file: e.target.files[0],
+                    })
+                  }
                   className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
                 />
               </div>
@@ -1910,7 +2270,12 @@ export function SubjectWorkspaceView({
               <textarea
                 rows="2"
                 value={materialForm.description}
-                onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
+                onChange={(e) =>
+                  setMaterialForm({
+                    ...materialForm,
+                    description: e.target.value,
+                  })
+                }
                 placeholder="Brief summary of content..."
                 className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300"
               />
@@ -1920,10 +2285,18 @@ export function SubjectWorkspaceView({
               <input
                 type="checkbox"
                 checked={materialForm.required_flag}
-                onChange={(e) => setMaterialForm({ ...materialForm, required_flag: e.target.checked })}
+                onChange={(e) =>
+                  setMaterialForm({
+                    ...materialForm,
+                    required_flag: e.target.checked,
+                  })
+                }
                 className="rounded-sm border-gray-300 text-emerald-600 focus:ring-emerald-500"
               />
-              <span>Mark as Mandatory Prerequisite (Required before Quiz can be unlocked)</span>
+              <span>
+                Mark as Mandatory Prerequisite (Required before Quiz can be
+                unlocked)
+              </span>
             </label>
 
             {isUploading && (
@@ -1979,7 +2352,9 @@ export function SubjectWorkspaceView({
               <textarea
                 rows="2"
                 value={questionForm.text}
-                onChange={(e) => setQuestionForm({ ...questionForm, text: e.target.value })}
+                onChange={(e) =>
+                  setQuestionForm({ ...questionForm, text: e.target.value })
+                }
                 placeholder="State the question clearly..."
                 className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300"
                 required
@@ -1993,7 +2368,17 @@ export function SubjectWorkspaceView({
                 </label>
                 <select
                   value={questionForm.type}
-                  onChange={(e) => setQuestionForm({ ...questionForm, type: e.target.value })}
+                  onChange={(e) => {
+                    const nextType = e.target.value;
+                    let defOption = "A";
+                    if (nextType === "TrueFalse" || nextType === "True/False") defOption = "True";
+                    if (nextType === "ShortAnswer" || nextType === "Short Answer") defOption = "";
+                    setQuestionForm({
+                      ...questionForm,
+                      type: nextType,
+                      correct_option: defOption,
+                    });
+                  }}
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
                 >
                   <option value="MCQ">Multiple Choice</option>
@@ -2008,7 +2393,12 @@ export function SubjectWorkspaceView({
                 </label>
                 <select
                   value={questionForm.difficulty}
-                  onChange={(e) => setQuestionForm({ ...questionForm, difficulty: e.target.value })}
+                  onChange={(e) =>
+                    setQuestionForm({
+                      ...questionForm,
+                      difficulty: e.target.value,
+                    })
+                  }
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
                 >
                   <option value="Easy">Easy</option>
@@ -2026,7 +2416,9 @@ export function SubjectWorkspaceView({
                   min="1"
                   max="10"
                   value={questionForm.marks}
-                  onChange={(e) => setQuestionForm({ ...questionForm, marks: e.target.value })}
+                  onChange={(e) =>
+                    setQuestionForm({ ...questionForm, marks: e.target.value })
+                  }
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300"
                 />
               </div>
@@ -2034,14 +2426,21 @@ export function SubjectWorkspaceView({
 
             {questionForm.type === "MCQ" && (
               <div className="space-y-2 pt-2 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-700">Options (A - D)</p>
+                <p className="text-xs font-semibold text-gray-700">
+                  Options (A - D)
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-500">A.</span>
                     <input
                       type="text"
                       value={questionForm.option_a}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_a: e.target.value })}
+                      onChange={(e) =>
+                        setQuestionForm({
+                          ...questionForm,
+                          option_a: e.target.value,
+                        })
+                      }
                       placeholder="Option A text"
                       className="w-full px-2.5 py-1 text-xs rounded-lg border border-gray-300"
                       required
@@ -2052,7 +2451,12 @@ export function SubjectWorkspaceView({
                     <input
                       type="text"
                       value={questionForm.option_b}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_b: e.target.value })}
+                      onChange={(e) =>
+                        setQuestionForm({
+                          ...questionForm,
+                          option_b: e.target.value,
+                        })
+                      }
                       placeholder="Option B text"
                       className="w-full px-2.5 py-1 text-xs rounded-lg border border-gray-300"
                       required
@@ -2063,7 +2467,12 @@ export function SubjectWorkspaceView({
                     <input
                       type="text"
                       value={questionForm.option_c}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_c: e.target.value })}
+                      onChange={(e) =>
+                        setQuestionForm({
+                          ...questionForm,
+                          option_c: e.target.value,
+                        })
+                      }
                       placeholder="Option C text"
                       className="w-full px-2.5 py-1 text-xs rounded-lg border border-gray-300"
                       required
@@ -2074,7 +2483,12 @@ export function SubjectWorkspaceView({
                     <input
                       type="text"
                       value={questionForm.option_d}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_d: e.target.value })}
+                      onChange={(e) =>
+                        setQuestionForm({
+                          ...questionForm,
+                          option_d: e.target.value,
+                        })
+                      }
                       placeholder="Option D text"
                       className="w-full px-2.5 py-1 text-xs rounded-lg border border-gray-300"
                       required
@@ -2088,7 +2502,12 @@ export function SubjectWorkspaceView({
                   </label>
                   <select
                     value={questionForm.correct_option}
-                    onChange={(e) => setQuestionForm({ ...questionForm, correct_option: e.target.value })}
+                    onChange={(e) =>
+                      setQuestionForm({
+                        ...questionForm,
+                        correct_option: e.target.value,
+                      })
+                    }
                     className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
                   >
                     <option value="A">Option A</option>
@@ -2100,35 +2519,71 @@ export function SubjectWorkspaceView({
               </div>
             )}
 
-            {(questionForm.type === "TrueFalse" || questionForm.type === "True/False") && (
-              <div className="pt-2 border-t border-gray-100">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Correct Answer
+            {(questionForm.type === "TrueFalse" ||
+              questionForm.type === "True/False") && (
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Select Correct Answer
                 </label>
-                <select
-                  value={questionForm.correct_option || "True"}
-                  onChange={(e) => setQuestionForm({ ...questionForm, correct_option: e.target.value })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
-                >
-                  <option value="True">True</option>
-                  <option value="False">False</option>
-                </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuestionForm({
+                        ...questionForm,
+                        correct_option: "True",
+                      })
+                    }
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                      questionForm.correct_option === "True"
+                        ? "bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20"
+                        : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    ✓ True
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuestionForm({
+                        ...questionForm,
+                        correct_option: "False",
+                      })
+                    }
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                      questionForm.correct_option === "False"
+                        ? "bg-rose-50 border-rose-500 text-rose-800 ring-2 ring-rose-500/20"
+                        : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    ✗ False
+                  </button>
+                </div>
               </div>
             )}
 
-            {(questionForm.type === "ShortAnswer" || questionForm.type === "Short Answer") && (
-              <div className="pt-2 border-t border-gray-100">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+            {(questionForm.type === "ShortAnswer" ||
+              questionForm.type === "Short Answer") && (
+              <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
                   Expected Answer / Key Phrase
                 </label>
                 <input
                   type="text"
                   value={questionForm.correct_option || ""}
-                  onChange={(e) => setQuestionForm({ ...questionForm, correct_option: e.target.value })}
-                  placeholder="Expected answer key..."
+                  onChange={(e) =>
+                    setQuestionForm({
+                      ...questionForm,
+                      correct_option: e.target.value,
+                    })
+                  }
+                  placeholder="Enter the expected answer key phrase..."
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300"
                   required
                 />
+                <p className="text-[11px] text-gray-500">
+                  Student submissions will be verified against this answer key.
+                </p>
               </div>
             )}
 
@@ -2139,7 +2594,12 @@ export function SubjectWorkspaceView({
               <textarea
                 rows="2"
                 value={questionForm.explanation}
-                onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
+                onChange={(e) =>
+                  setQuestionForm({
+                    ...questionForm,
+                    explanation: e.target.value,
+                  })
+                }
                 placeholder="Why is this answer correct? References..."
                 className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300"
               />
@@ -2175,10 +2635,14 @@ export function SubjectWorkspaceView({
         >
           <div className="space-y-4">
             <p className="text-xs text-gray-600">
-              Generates rigorous curriculum questions from course notes and topics using the background ML worker bridge.
+              Generates rigorous curriculum questions from course notes and
+              topics using the background ML worker bridge.
             </p>
 
-            <form onSubmit={handleTriggerAiJob} className="grid grid-cols-2 gap-3">
+            <form
+              onSubmit={handleTriggerAiJob}
+              className="grid grid-cols-2 gap-3"
+            >
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
                   Draft Count
@@ -2188,7 +2652,9 @@ export function SubjectWorkspaceView({
                   min="1"
                   max="10"
                   value={aiGenForm.count}
-                  onChange={(e) => setAiGenForm({ ...aiGenForm, count: e.target.value })}
+                  onChange={(e) =>
+                    setAiGenForm({ ...aiGenForm, count: e.target.value })
+                  }
                   className="w-full px-3 py-1.5 text-xs rounded-lg border border-gray-300"
                 />
               </div>
@@ -2199,7 +2665,9 @@ export function SubjectWorkspaceView({
                 </label>
                 <select
                   value={aiGenForm.difficulty}
-                  onChange={(e) => setAiGenForm({ ...aiGenForm, difficulty: e.target.value })}
+                  onChange={(e) =>
+                    setAiGenForm({ ...aiGenForm, difficulty: e.target.value })
+                  }
                   className="w-full px-3 py-1.5 text-xs rounded-lg border border-gray-300 bg-white"
                 >
                   <option value="Easy">Easy</option>
@@ -2226,9 +2694,13 @@ export function SubjectWorkspaceView({
 
             {aiJobStatus === "polling" && (
               <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-center space-y-2">
-                <LoadingSpinner message="Polling ML worker status..." size="sm" />
+                <LoadingSpinner
+                  message="Polling ML worker status..."
+                  size="sm"
+                />
                 <p className="text-[11px] text-indigo-700">
-                  Synthesizing questions from course curriculum. This typically takes 2-4 seconds.
+                  Synthesizing questions from course curriculum. This typically
+                  takes 2-4 seconds.
                 </p>
               </div>
             )}
@@ -2256,7 +2728,8 @@ export function SubjectWorkspaceView({
                       </button>
                     </div>
                     <p className="text-[11px] text-gray-500">
-                      Answer: {draft.correct_answer} • Difficulty: {draft.difficulty || "Medium"}
+                      Answer: {draft.correct_answer} • Difficulty:{" "}
+                      {draft.difficulty || "Medium"}
                     </p>
                   </div>
                 ))}
@@ -2294,14 +2767,17 @@ export function SubjectWorkspaceView({
               </label>
               <select
                 value={staffForm.faculty_id}
-                onChange={(e) => setStaffForm({ ...staffForm, faculty_id: e.target.value })}
+                onChange={(e) =>
+                  setStaffForm({ ...staffForm, faculty_id: e.target.value })
+                }
                 className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300 bg-white"
                 required
               >
                 <option value="">Select Faculty...</option>
                 {facultyCatalog.map((f) => (
                   <option key={f.faculty_id} value={f.faculty_id}>
-                    {f.full_name} ({f.employee_code}) - {f.designation_name || "Faculty"}
+                    {f.full_name} ({f.employee_code}) -{" "}
+                    {f.designation_name || "Faculty"}
                   </option>
                 ))}
               </select>
@@ -2313,10 +2789,14 @@ export function SubjectWorkspaceView({
               </label>
               <select
                 value={staffForm.role}
-                onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                onChange={(e) =>
+                  setStaffForm({ ...staffForm, role: e.target.value })
+                }
                 className="w-full px-3 py-2 text-xs rounded-xl border border-gray-300 bg-white"
               >
-                <option value="Primary Instructor">Primary Instructor (Lead)</option>
+                <option value="Primary Instructor">
+                  Primary Instructor (Lead)
+                </option>
                 <option value="Co-Teacher">Co-Teacher</option>
                 <option value="Course Coordinator">Course Coordinator</option>
                 <option value="Lab Assistant">Lab Assistant</option>
@@ -2354,23 +2834,41 @@ export function SubjectWorkspaceView({
         >
           <div className="space-y-4 max-h-96 overflow-y-auto">
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-              <span className="font-bold">Student Viewport Simulation:</span> This preview renders questions and options exactly as a student sees during an active attempt.
+              <span className="font-bold">Student Viewport Simulation:</span>{" "}
+              This preview renders questions and options exactly as a student
+              sees during an active attempt.
             </div>
 
             <div className="space-y-4">
               {(previewData.questions || []).map((q, idx) => (
-                <div key={idx} className="p-3 border border-gray-200 rounded-xl space-y-2 text-xs">
+                <div
+                  key={q.question_id || `preview_q_${idx}`}
+                  className="p-3 border border-gray-200 rounded-xl space-y-2 text-xs"
+                >
                   <p className="font-bold text-gray-900">
                     Q{idx + 1}. {q.text}
                   </p>
-                  {Array.isArray(q.options) && (
+                  {Array.isArray(q.options) && q.options.length > 0 && (
                     <div className="space-y-1.5 pl-2">
-                      {q.options.map((opt) => (
-                        <div key={opt.key} className="flex items-center gap-2 text-gray-700">
-                          <span className="font-bold text-gray-500">{opt.key}.</span>
-                          <span>{opt.text}</span>
-                        </div>
-                      ))}
+                      {q.options.map((opt, optIndex) => {
+                        const optKey =
+                          typeof opt === "object" && opt !== null && opt.key
+                            ? opt.key
+                            : ["A", "B", "C", "D"][optIndex] || String(optIndex + 1);
+                        const optText =
+                          typeof opt === "object" && opt !== null ? opt.text : opt;
+                        return (
+                          <div
+                            key={optKey || `opt_${optIndex}`}
+                            className="flex items-center gap-2 text-gray-700"
+                          >
+                            <span className="font-bold text-gray-500">
+                              {optKey}.
+                            </span>
+                            <span>{optText}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2392,7 +2890,8 @@ export function SubjectWorkspaceView({
           <div className="space-y-3">
             {versionSnapshots.length === 0 ? (
               <p className="text-xs text-gray-500 py-4 text-center">
-                No archived revision snapshots. This resource is at its initial revision (v1).
+                No archived revision snapshots. This resource is at its initial
+                revision (v1).
               </p>
             ) : (
               <div className="space-y-2 max-h-72 overflow-y-auto">
@@ -2420,6 +2919,16 @@ export function SubjectWorkspaceView({
           </div>
         </Modal>
       )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: STUDY MATERIAL IN-APP VIEWER */}
+      {/* ------------------------------------------------------------- */}
+      <MaterialViewerModal
+        isOpen={Boolean(viewingMaterial)}
+        onClose={() => setViewingMaterial(null)}
+        material={viewingMaterial}
+        token={token}
+      />
     </div>
   );
 }

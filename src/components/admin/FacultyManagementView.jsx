@@ -45,6 +45,7 @@ export function FacultyManagementView({ token }) {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, ACTIVE, INACTIVE
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -391,6 +392,22 @@ export function FacultyManagementView({ token }) {
     },
   ];
 
+  const displayedFacultyList = useMemo(() => {
+    if (statusFilter === "ACTIVE") {
+      return facultyList.filter((f) => f.is_active === 1 || f.is_active === true);
+    }
+    if (statusFilter === "INACTIVE") {
+      return facultyList.filter((f) => f.is_active === 0 || f.is_active === false);
+    }
+    return facultyList;
+  }, [facultyList, statusFilter]);
+
+  const activeCount = useMemo(
+    () => facultyList.filter((f) => f.is_active === 1 || f.is_active === true).length,
+    [facultyList]
+  );
+  const inactiveCount = facultyList.length - activeCount;
+
   return (
     <div className="space-y-6">
       {actionSuccess && <Alert type="success" message={actionSuccess} />}
@@ -401,19 +418,61 @@ export function FacultyManagementView({ token }) {
       ) : (
         <DataTable
           columns={columns}
-          data={facultyList}
+          data={displayedFacultyList}
           searchPlaceholder="Search faculty by name, employee code, department..."
           pageSize={10}
-          emptyMessage="No faculty records found."
+          emptyMessage={
+            statusFilter === "INACTIVE"
+              ? "No inactive faculty records found."
+              : "No faculty records found."
+          }
           actions={
-            <button
-              type="button"
-              onClick={handleOpenCreate}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition cursor-pointer"
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add Faculty Profile
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("ALL")}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                    statusFilter === "ALL"
+                      ? "bg-white text-gray-900 shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  All ({facultyList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("ACTIVE")}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                    statusFilter === "ACTIVE"
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Active ({activeCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("INACTIVE")}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                    statusFilter === "INACTIVE"
+                      ? "bg-red-700 text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Inactive ({inactiveCount})
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-900 transition cursor-pointer"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add Faculty Profile
+              </button>
+            </div>
           }
         />
       )}

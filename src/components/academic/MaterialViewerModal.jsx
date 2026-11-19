@@ -16,6 +16,9 @@ import {
   BookOpenIcon,
   ArrowTopRightOnSquareIcon,
   ExclamationCircleIcon,
+  UserIcon,
+  DocumentTextIcon,
+  AcademicCapIcon,
 } from "@heroicons/react/24/outline";
 import { CheckIcon } from "@heroicons/react/20/solid";
 
@@ -51,6 +54,12 @@ export default function MaterialViewerModal({
       });
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       fetch(`${API_BASE_URL}/academic/materials/${material.material_id}/view`, { headers })
+        .then((res) => {
+          if (!res.ok) {
+            return fetch(`${API_BASE_URL}/academic/materials/${material.material_id}/download?disposition=inline`, { headers });
+          }
+          return res;
+        })
         .then((res) => {
           if (!res.ok) throw new Error("Preview stream failed");
           return res.blob();
@@ -143,12 +152,22 @@ export default function MaterialViewerModal({
       const a = document.createElement("a");
       a.href = url;
       const disposition = response.headers.get("Content-Disposition") || "";
-      const match = disposition.match(/filename="?([^"]+)"?/);
-      a.download = match
-        ? match[1]
-        : material.file_ref
-        ? material.file_ref.split(/[\\/]/).pop()
-        : `${material.title.replace(/[^a-zA-Z0-9_-]/g, "_")}${material.type === "PDF" ? ".pdf" : ""}`;
+      let downloadName = null;
+      const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (match && match[1]) {
+        downloadName = decodeURIComponent(match[1].trim());
+      }
+      if (!downloadName) {
+        const rawFileName = material.file_ref ? material.file_ref.split(/[\\/]/).pop() : null;
+        if (rawFileName && !/^\d+_[a-f0-9-]+/i.test(rawFileName)) {
+          downloadName = rawFileName;
+        } else {
+          const ext = material.type === "PDF" ? ".pdf" : material.type === "Slide" ? ".pptx" : material.type === "Video" ? ".mp4" : ".txt";
+          const safeTitle = (material.title || "academic_material").replace(/[^a-zA-Z0-9_.-]/g, "").replace(/\s+/g, "_");
+          downloadName = `${safeTitle}${ext}`;
+        }
+      }
+      a.download = downloadName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -429,6 +448,9 @@ export default function MaterialViewerModal({
               Format: {material.type}
             </span>
             <span className="text-xs text-slate-500">v{material.version}</span>
+            <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
+              {material.status || "Published"}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -442,6 +464,46 @@ export default function MaterialViewerModal({
               {downloading ? "Downloading..." : "Download Resource"}
             </button>
           </div>
+        </div>
+
+        {/* Material Provenance & Information Card */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-xs text-slate-700 shadow-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Course Unit</span>
+              <span className="font-semibold text-slate-900 flex items-center gap-1 mt-0.5">
+                <BookOpenIcon className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                {material.topic_title || material.unit_name || "Course Unit"}
+              </span>
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Subject</span>
+              <span className="font-semibold text-slate-900 flex items-center gap-1 mt-0.5">
+                <AcademicCapIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                {material.subject_name || material.code || "Academic Course"}
+              </span>
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Faculty Uploader</span>
+              <span className="font-semibold text-emerald-800 flex items-center gap-1 mt-0.5">
+                <UserIcon className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                {material.faculty_name || material.uploader_name || material.author_name || "Faculty Member"}
+              </span>
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Original Filename</span>
+              <span className="font-mono text-[11px] text-slate-800 truncate flex items-center gap-1 mt-0.5" title={material.file_ref ? material.file_ref.split(/[\\/]/).pop() : `${material.title}.pdf`}>
+                <DocumentTextIcon className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                {material.file_ref ? material.file_ref.split(/[\\/]/).pop() : `${material.title.replace(/\s+/g, "_")}${material.type === "PDF" ? ".pdf" : ""}`}
+              </span>
+            </div>
+          </div>
+          {material.description && (
+            <div className="mt-2.5 pt-2 border-t border-slate-200/80 text-slate-600">
+              <span className="font-semibold text-slate-700">Description: </span>
+              {material.description}
+            </div>
+          )}
         </div>
 
         {/* Download Error Notice */}

@@ -282,6 +282,30 @@ export async function fetchTopicQuiz(token, topicId) {
 }
 
 /**
+ * Create a new quiz for a topic
+ */
+export async function createTopicQuiz(token, topicId, quizData) {
+  return apiClient(`/academic/topics/${topicId}/quiz`, {
+    method: "POST",
+    token,
+    body: {
+      title: quizData.title,
+      description: quizData.description,
+      time_limit: quizData.time_limit,
+      pass_mark: quizData.pass_mark,
+      max_attempts: quizData.max_attempts,
+      questions_to_draw: quizData.questions_to_draw !== undefined && quizData.questions_to_draw !== "" ? (parseInt(quizData.questions_to_draw, 10) || null) : null,
+      open_at: quizData.open_at || quizData.available_from || null,
+      close_at: quizData.close_at || quizData.due_date || null,
+      status: quizData.status || "Draft",
+      shuffle_questions: quizData.shuffle_questions ? 1 : 0,
+      shuffle_options: quizData.shuffle_options ? 1 : 0,
+      show_explanation: quizData.show_explanation ? 1 : 0,
+    },
+  });
+}
+
+/**
  * Update topic quiz configuration (schedule, pass mark, time limit, publish)
  */
 export async function updateTopicQuiz(token, topicId, quizData) {
@@ -295,8 +319,8 @@ export async function updateTopicQuiz(token, topicId, quizData) {
       pass_mark: quizData.pass_mark,
       max_attempts: quizData.max_attempts,
       questions_to_draw: quizData.questions_to_draw !== undefined && quizData.questions_to_draw !== "" ? (parseInt(quizData.questions_to_draw, 10) || null) : null,
-      open_at: quizData.open_at,
-      close_at: quizData.close_at,
+      open_at: quizData.open_at || quizData.available_from || null,
+      close_at: quizData.close_at || quizData.due_date || null,
       status: quizData.status,
       shuffle_questions: quizData.shuffle_questions,
       shuffle_options: quizData.shuffle_options,
@@ -332,6 +356,7 @@ export async function createQuestion(token, topicId, questionData) {
       options: questionData.options || [],
       answer: String(answer ?? "").trim(),
       correct_answer: String(answer ?? "").trim(),
+      correct_option: String(answer ?? "").trim(),
       explanation: questionData.explanation || "",
       marks: parseFloat(questionData.marks) || 1.0,
       difficulty: questionData.difficulty || "Medium",

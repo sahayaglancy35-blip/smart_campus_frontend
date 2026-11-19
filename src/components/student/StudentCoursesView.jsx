@@ -48,6 +48,7 @@ export function StudentCoursesView({ token, onNavigate }) {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState(token ? "" : "Please log in to view courses.");
   const [typeFilter, setTypeFilter] = useState("ALL"); // ALL | THEORY | LAB
+  const [selectedSemester, setSelectedSemester] = useState(null);
 
   useEffect(() => {
     if (!token) return;
@@ -75,12 +76,39 @@ export function StudentCoursesView({ token, onNavigate }) {
     return () => controller.abort();
   }, [token]);
 
+  // Extract distinct enrolled semesters
+  const availableSemesters = useMemo(() => {
+    const set = new Set();
+    courses.forEach((c) => {
+      if (c.semester) set.add(Number(c.semester));
+    });
+    return [...set].sort((a, b) => a - b);
+  }, [courses]);
+
+  // Active semester: default to odd semester in current academic term (or first available)
+  const activeSemester = useMemo(() => {
+    if (selectedSemester && availableSemesters.includes(Number(selectedSemester))) {
+      return Number(selectedSemester);
+    }
+    if (availableSemesters.length === 0) return null;
+    const oddSem = availableSemesters.find((s) => s % 2 === 1);
+    return oddSem !== undefined ? oddSem : availableSemesters[0];
+  }, [availableSemesters, selectedSemester]);
+
+  // Courses filtered by active semester
+  const semesterCourses = useMemo(() => {
+    if (!activeSemester) return courses;
+    return courses.filter(
+      (c) => !c.semester || Number(c.semester) === Number(activeSemester)
+    );
+  }, [courses, activeSemester]);
+
   const stats = useMemo(() => {
     let theoryCount = 0;
     let labCount = 0;
     let totalCredits = 0;
 
-    courses.forEach((course) => {
+    semesterCourses.forEach((course) => {
       totalCredits += Number(course.credits || 0);
       if (getDeliveryType(course) === "LAB") {
         labCount += 1;
@@ -90,17 +118,17 @@ export function StudentCoursesView({ token, onNavigate }) {
     });
 
     return { theoryCount, labCount, totalCredits };
-  }, [courses]);
+  }, [semesterCourses]);
 
   const visibleCourses = useMemo(
     () =>
       typeFilter === "ALL"
-        ? courses
-        : courses.filter((course) => getDeliveryType(course) === typeFilter),
-    [courses, typeFilter]
+        ? semesterCourses
+        : semesterCourses.filter((course) => getDeliveryType(course) === typeFilter),
+    [semesterCourses, typeFilter]
   );
 
-  const animatedCourses = useCountUp(courses.length);
+  const animatedCourses = useCountUp(semesterCourses.length);
   const animatedCredits = useCountUp(stats.totalCredits);
 
   if (loading) {
@@ -140,10 +168,12 @@ export function StudentCoursesView({ token, onNavigate }) {
 
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold">Your course load this semester</h2>
+            <h2 className="text-xl font-bold">
+              Your course load {activeSemester ? `(Semester ${activeSemester})` : "this semester"}
+            </h2>
             <p className="mt-1 text-sm text-green-100/80">
               {stats.theoryCount} theory {stats.theoryCount === 1 ? "paper" : "papers"} and{" "}
-              {stats.labCount} lab {stats.labCount === 1 ? "course" : "courses"} registered.
+              {stats.labCount} lab {stats.labCount === 1 ? "course" : "courses"} registered for the current term.
             </p>
           </div>
 
@@ -178,31 +208,61 @@ export function StudentCoursesView({ token, onNavigate }) {
       {/* ---------- Course list ---------- */}
       <section>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="inline-flex self-start rounded-xl bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => setTypeFilter("ALL")}
-              aria-pressed={typeFilter === "ALL"}
-              className={filterButtonClass(typeFilter === "ALL", "bg-green-800 text-white shadow-xs")}
-            >
-              All ({courses.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setTypeFilter("THEORY")}
-              aria-pressed={typeFilter === "THEORY"}
-              className={filterButtonClass(typeFilter === "THEORY", "bg-green-700 text-white shadow-xs")}
-            >
-              Theory ({stats.theoryCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setTypeFilter("LAB")}
-              aria-pressed={typeFilter === "LAB"}
-              className={filterButtonClass(typeFilter === "LAB", "bg-yellow-300 text-yellow-950 shadow-xs")}
-            >
-              Lab ({stats.labCount})
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {availableSemesters.length > 1 && (
+              <div className="inline-flex rounded-xl bg-gray-100 p-1">
+                {availableSemesters.map((sem) => {
+                  const isSelected = activeSemester === sem;
+                  const isOdd = sem % 2 === 1;
+                  return (
+                    <button
+                      key={sem}
+                      type="button"
+                      onClick={() => setSelectedSemester(sem)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                        isSelected
+                          ? "bg-green-900 text-white shadow-xs"
+                          : "text-gray-600 hover:bg-white/60 hover:text-gray-900"
+                      }`}
+                    >
+                      Semester {sem}
+                      {isOdd && (
+                        <span className="rounded-full bg-emerald-700/60 px-1.5 py-0.5 text-[10px] text-emerald-100">
+                          Active Term
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="inline-flex self-start rounded-xl bg-gray-100 p-1">
+              <button
+                type="button"
+                onClick={() => setTypeFilter("ALL")}
+                aria-pressed={typeFilter === "ALL"}
+                className={filterButtonClass(typeFilter === "ALL", "bg-green-800 text-white shadow-xs")}
+              >
+                All ({semesterCourses.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeFilter("THEORY")}
+                aria-pressed={typeFilter === "THEORY"}
+                className={filterButtonClass(typeFilter === "THEORY", "bg-green-700 text-white shadow-xs")}
+              >
+                Theory ({stats.theoryCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeFilter("LAB")}
+                aria-pressed={typeFilter === "LAB"}
+                className={filterButtonClass(typeFilter === "LAB", "bg-yellow-300 text-yellow-950 shadow-xs")}
+              >
+                Lab ({stats.labCount})
+              </button>
+            </div>
           </div>
 
           <DeliveryLegend />
@@ -247,6 +307,10 @@ export function StudentCoursesView({ token, onNavigate }) {
                   </h3>
 
                   <div className="mt-auto flex flex-wrap gap-1.5 border-t border-black/5 pt-4">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-gray-700 ring-1 ring-black/5">
+                      <AcademicCapIcon className="h-3.5 w-3.5 text-gray-400" />
+                      Sem {course.semester || activeSemester}
+                    </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-gray-700 ring-1 ring-black/5">
                       <AcademicCapIcon className="h-3.5 w-3.5 text-gray-400" />
                       {Number(course.credits)} credits
