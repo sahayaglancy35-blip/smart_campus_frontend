@@ -296,7 +296,12 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
 
         setQuiz(
           quizRes.status === "fulfilled" && quizRes.value?.data
-            ? quizRes.value.data
+            ? {
+                ...quizRes.value.data,
+                description: quizRes.value.data.description || "",
+                available_from: quizRes.value.data.open_at || quizRes.value.data.available_from || "",
+                due_date: quizRes.value.data.close_at || quizRes.value.data.due_date || "",
+              }
             : null,
         );
 
@@ -534,17 +539,20 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
   // -------------------------------------------------------------
   const handleSaveQuizSettings = async (e) => {
     e.preventDefault();
-    if (!quiz?.quiz_id) return;
+    if (!selectedTopic?.topic_id) return;
 
     try {
-      await updateTopicQuiz(token, quiz.quiz_id, {
+      await updateTopicQuiz(token, selectedTopic.topic_id, {
         title: quiz.title,
-        status: quiz.status,
+        description: quiz.description || null,
+        status: quiz.status || "Draft",
         time_limit: parseInt(quiz.time_limit, 10) || 30,
         pass_mark: parseFloat(quiz.pass_mark) || 50,
         max_attempts: parseInt(quiz.max_attempts, 10) || 3,
-        available_from: quiz.available_from,
-        due_date: quiz.due_date,
+        open_at: quiz.available_from || null,
+        close_at: quiz.due_date || null,
+        available_from: quiz.available_from || null,
+        due_date: quiz.due_date || null,
         questions_to_draw: quiz.questions_to_draw
           ? parseInt(quiz.questions_to_draw, 10)
           : null,
@@ -553,13 +561,33 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
       });
       setFeedback({
         type: "success",
-        message: "Quiz settings & schedule saved",
+        message: "Quiz configuration & settings saved successfully",
       });
       setRefreshKey((k) => k + 1);
     } catch (err) {
       setFeedback({
         type: "error",
-        message: err.message || "Failed to update quiz settings",
+        message: err.message || "Failed to save quiz configuration",
+      });
+    }
+  };
+
+  const handleCreateOrOpenQuizForTopic = (topic) => {
+    setSelectedTopic(topic);
+    setActiveTab("quiz");
+    if (!topic.quiz_id) {
+      setQuiz({
+        title: `${topic.title} Assessment Quiz`,
+        description: `Assessment for ${topic.title}. Test your understanding of core concepts and applications.`,
+        status: "Draft",
+        time_limit: 30,
+        pass_mark: 50,
+        max_attempts: 3,
+        questions_to_draw: "",
+        shuffle_questions: 1,
+        shuffle_options: 1,
+        available_from: "",
+        due_date: "",
       });
     }
   };
@@ -1228,6 +1256,16 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
+                        onClick={() => handleCreateOrOpenQuizForTopic(t)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition"
+                        title="Create or configure assessment quiz for this course unit"
+                      >
+                        <SparklesIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{t.quiz_id ? "Configure Quiz" : "Create Quiz"}</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => setSelectedTopic(t)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                           isSelected
@@ -1516,14 +1554,36 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
           </div>
 
           {!quiz ? (
-            <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl">
-              <CalendarDaysIcon className="w-10 h-10 text-gray-300 mx-auto" />
-              <p className="text-sm font-semibold text-gray-700 mt-2">
-                No quiz initialized for this unit
+            <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl space-y-3 bg-gray-50/50">
+              <CalendarDaysIcon className="w-10 h-10 text-emerald-600 mx-auto" />
+              <p className="text-sm font-semibold text-gray-800">
+                No quiz initialized for {selectedTopic?.title || "this unit"}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Please ensure curriculum units have quiz authoring enabled.
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                Create an assessment quiz directly for this unit to test student learning outcomes and configure assessment parameters.
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuiz({
+                    title: `${selectedTopic?.title || "Unit"} Assessment Quiz`,
+                    description: `Assessment for ${selectedTopic?.title || "this unit"}. Test your understanding of core concepts.`,
+                    status: "Draft",
+                    time_limit: 30,
+                    pass_mark: 50,
+                    max_attempts: 3,
+                    questions_to_draw: "",
+                    shuffle_questions: 1,
+                    shuffle_options: 1,
+                    available_from: "",
+                    due_date: "",
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition shadow-xs"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span>Initialize Quiz for {selectedTopic?.title || "Unit"}</span>
+              </button>
             </div>
           ) : (
             <form
@@ -1543,6 +1603,21 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
                     }
                     className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Quiz Description & Student Instructions
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={quiz.description || ""}
+                    onChange={(e) =>
+                      setQuiz({ ...quiz, description: e.target.value })
+                    }
+                    placeholder="Instructions for students taking this assessment..."
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   />
                 </div>
 
