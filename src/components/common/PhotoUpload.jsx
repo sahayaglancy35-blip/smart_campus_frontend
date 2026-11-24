@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { PhotoIcon, TrashIcon, ArrowUturnLeftIcon } from "@heroicons/react/24/outline";
+import { PhotoIcon, TrashIcon, ArrowUturnLeftIcon, CameraIcon, ScissorsIcon } from "@heroicons/react/24/outline";
 import Avatar from "./Avatar";
 import { PHOTO_ACCEPT, validatePhotoFile } from "../../utils/photo";
+import CameraCaptureModal from "./CameraCaptureModal";
+import ImageCropModal from "./ImageCropModal";
 
 /**
  * Photo picker for the admin forms. It does not upload anything itself; it
@@ -26,6 +28,8 @@ export function PhotoUpload({
   const inputRef = useRef(null);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(null); // { file, url }
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cropTarget, setCropTarget] = useState(null); // { imageSrc, fileName }
 
   // Build a local preview of the chosen file (no upload yet).
   useEffect(() => {
@@ -83,7 +87,18 @@ export function PhotoUpload({
       return;
     }
     setError("");
-    onChange?.({ file: picked, remove: false });
+
+    // Read picked file as DataURL and automatically open the Crop & Zoom modal
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        setCropTarget({
+          imageSrc: reader.result,
+          fileName: picked.name,
+        });
+      }
+    };
+    reader.readAsDataURL(picked);
   };
 
   const handleRemove = () => {
@@ -134,12 +149,42 @@ export function PhotoUpload({
           <button
             type="button"
             disabled={disabled}
+            onClick={() => setIsCameraOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-900 disabled:opacity-50 transition shadow-sm cursor-pointer"
+          >
+            <CameraIcon className="h-4 w-4" />
+            Take Photo
+          </button>
+
+          <button
+            type="button"
+            disabled={disabled}
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-green-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-900 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition cursor-pointer"
           >
             <PhotoIcon className="h-4 w-4" />
-            {shown ? "Change photo" : "Choose photo"}
+            {shown ? "Upload File" : "Upload File"}
           </button>
+
+          {shown && !removed && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (shown) {
+                  setCropTarget({
+                    imageSrc: shown,
+                    fileName: file?.name || "profile-photo.jpg",
+                  });
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition cursor-pointer"
+              title="Crop and reposition this photo"
+            >
+              <ScissorsIcon className="h-4 w-4" />
+              Crop / Zoom
+            </button>
+          )}
 
           {(file || (hasSaved && !removed)) && (
             <button
@@ -166,6 +211,26 @@ export function PhotoUpload({
           )}
         </div>
       </div>
+
+      <CameraCaptureModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={(file) => {
+          setError("");
+          onChange?.({ file, remove: false });
+        }}
+      />
+
+      <ImageCropModal
+        isOpen={Boolean(cropTarget)}
+        imageSrc={cropTarget?.imageSrc}
+        fileName={cropTarget?.fileName}
+        onClose={() => setCropTarget(null)}
+        onCropComplete={(croppedFile) => {
+          setError("");
+          onChange?.({ file: croppedFile, remove: false });
+        }}
+      />
     </div>
   );
 }
