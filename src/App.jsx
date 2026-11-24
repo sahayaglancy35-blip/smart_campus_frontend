@@ -7,6 +7,7 @@ import { fetchStudentProfile } from "./api/student";
 import { fetchFacultyProfile } from "./api/faculty";
 import * as adminApi from "./api/admin";
 import { ProfileUpdateContext } from "./context/ProfileUpdateContext";
+import { getPhotoPath } from "./utils/photo";
 
 const LoginPage = lazy(() => import("./components/LoginPage"));
 const ForgotPasswordPage = lazy(() => import("./components/ForgotPasswordPage"));
@@ -53,7 +54,7 @@ function getStoredToken() {
       null
     );
   } catch {
-    return null;  
+    return null;
   }
 }
 
@@ -162,6 +163,8 @@ function AppContent() {
       department: profile.department_name || profile.department || null,
       email: profile.email || authData.email,
       phone: profile.phone || null,
+      // Profile photo path from the backend (e.g. "/uploads/students/abc.jpg")
+      photoUrl: getPhotoPath(profile) || getPhotoPath(authData),
       role: authData.role,
       roleLabel,
       gender: profile.gender || "male",
@@ -551,7 +554,16 @@ function AppContent() {
         ? String(values.dateOfBirth).substring(0, 10)
         : (returnedData.date_of_birth ? String(returnedData.date_of_birth).substring(0, 10) : null);
 
-      const updatedUser = {
+      const persist = (next) => {
+        setUser(next);
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(next));
+        } catch {
+          // Ignore storage errors
+        }
+      };
+
+      let updatedUser = {
         ...user,
         name: values.name,
         full_name: values.name,
@@ -566,12 +578,34 @@ function AppContent() {
         gender: values.gender || user?.gender || "male",
         genderLabel: values.gender,
       };
+      persist(updatedUser);
 
-      setUser(updatedUser);
-      try {
-        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
-      } catch {
-        // Ignore storage errors
+      // Profile photo uses its own upload/delete route. The details above are
+      // already saved, so a photo failure never loses them.
+      if (values.photoFile || values.removePhoto) {
+        try {
+          let photoUrl = null;
+
+          if (values.photoFile) {
+            const res = await adminApi.uploadAdminPhoto(currentToken, values.photoFile);
+            photoUrl = getPhotoPath(res);
+
+            if (!photoUrl) {
+              // Upload response had no path: read it back from the profile
+              const fresh = await adminApi.fetchAdminProfile(currentToken);
+              photoUrl = getPhotoPath(fresh);
+            }
+          } else {
+            await adminApi.deleteAdminPhoto(currentToken);
+          }
+
+          updatedUser = { ...updatedUser, photoUrl, photoVersion: Date.now() };
+          persist(updatedUser);
+        } catch (err) {
+          throw new Error(
+            `Your details were saved, but the photo change failed: ${err.message}`,
+          );
+        }
       }
     },
     [token, user],

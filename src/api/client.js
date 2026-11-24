@@ -86,6 +86,8 @@ function resolveErrorMessage(data, status, method, cleanEndpoint) {
       return `The requested resource or endpoint was not found (${cleanEndpoint}).`;
     case 409:
       return "A conflict occurred with an existing record. Please review your input.";
+    case 413:
+      return "The file is too large for the server. Choose a smaller file.";
     case 500:
       return "An internal server error occurred. Please try again or contact the administrator.";
     case 502:
@@ -163,6 +165,32 @@ export async function apiClient(endpoint, options = {}) {
     console.error(`[API Error] ${method} ${cleanEndpoint}:`, err.message);
     throw err;
   }
+}
+
+/**
+ * Convert a backend photo path (e.g. "/uploads/students/abc.jpg") into a
+ * full URL that works in <img src>. Uploaded files are served from the
+ * server origin (e.g. http://localhost:5000/uploads/...), not from the
+ * frontend origin and not under /api/v1.
+ * Pass a version (e.g. a timestamp) to bust the browser cache after a
+ * photo is replaced. Full http(s), data: and blob: URLs pass through unchanged.
+ */
+export function resolveAssetUrl(path, version) {
+  if (!path) return null;
+  if (/^(https?:|data:|blob:)/i.test(path)) return path;
+
+  let origin = "";
+  try {
+    origin = new URL(API_BASE_URL, window.location.origin).origin;
+  } catch {
+    origin = "";
+  }
+
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  const url = `${origin}${clean}`;
+  return version
+    ? `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`
+    : url;
 }
 
 export { API_BASE_URL };

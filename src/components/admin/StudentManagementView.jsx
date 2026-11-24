@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   getStudents,
-  createStudent,
+  createStudentWithPhoto,
   updateStudent,
   deleteStudent,
+  uploadStudentPhoto,
+  deleteStudentPhoto,
 } from "../../api/admin";
 import {
   getSchools,
@@ -17,6 +19,9 @@ import Badge from "../common/Badge";
 import Modal from "../common/Modal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import Avatar from "../common/Avatar";
+import PhotoUpload from "../common/PhotoUpload";
+import { getPhotoPath } from "../../utils/photo";
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -50,6 +55,44 @@ const GENDER_OPTIONS = [
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 
+const INPUT_CLASS =
+  "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none";
+const SELECT_CLASS = `${INPUT_CLASS} bg-white`;
+
+const EMPTY_FORM = {
+  register_no: "",
+  full_name: "",
+  email: "",
+  phone: "",
+  gender: "",
+  date_of_birth: "",
+  blood_group: "",
+  status: "ACTIVE",
+  // Academic hierarchy selections
+  school_id: "",
+  department_id: "",
+  programme_id: "",
+  batch_id: "",
+  section_id: "",
+  // Credentials
+  username: "",
+  password: "",
+};
+
+function FormField({ label, required = false, upper = false, className = "", children }) {
+  return (
+    <div className={className}>
+      <label
+        className={`block text-xs font-semibold text-gray-700 ${upper ? "uppercase" : ""}`}
+      >
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 export function StudentManagementView({ token }) {
   // Main data states
   const [students, setStudents] = useState([]);
@@ -73,26 +116,12 @@ export function StudentManagementView({ token }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
+  // Photo state (selected file / removal flag for the open form)
+  const [photoFile, setPhotoFile] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+
   // Form state
-  const [formData, setFormData] = useState({
-    register_no: "",
-    full_name: "",
-    email: "",
-    phone: "",
-    gender: "",
-    date_of_birth: "",
-    blood_group: "",
-    status: "ACTIVE",
-    // Academic hierarchy selections
-    school_id: "",
-    department_id: "",
-    programme_id: "",
-    batch_id: "",
-    section_id: "",
-    // Credentials
-    username: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   // Load students and academic reference catalogs
   useEffect(() => {
@@ -102,21 +131,15 @@ export function StudentManagementView({ token }) {
     async function fetchData() {
       try {
         setError("");
-        const [
-          studentRes,
-          schoolRes,
-          deptRes,
-          progRes,
-          batchRes,
-          secRes,
-        ] = await Promise.all([
-          getStudents(token, controller.signal),
-          getSchools(token, null, controller.signal).catch(() => ({ data: [] })),
-          getDepartments(token, null, controller.signal).catch(() => ({ data: [] })),
-          getPrograms(token, null, controller.signal).catch(() => ({ data: [] })),
-          getBatches(token, null, controller.signal).catch(() => ({ data: [] })),
-          getSections(token, null, controller.signal).catch(() => ({ data: [] })),
-        ]);
+        const [studentRes, schoolRes, deptRes, progRes, batchRes, secRes] =
+          await Promise.all([
+            getStudents(token, controller.signal),
+            getSchools(token, null, controller.signal).catch(() => ({ data: [] })),
+            getDepartments(token, null, controller.signal).catch(() => ({ data: [] })),
+            getPrograms(token, null, controller.signal).catch(() => ({ data: [] })),
+            getBatches(token, null, controller.signal).catch(() => ({ data: [] })),
+            getSections(token, null, controller.signal).catch(() => ({ data: [] })),
+          ]);
 
         setStudents(Array.isArray(studentRes?.data) ? studentRes.data : []);
         setSchools(Array.isArray(schoolRes?.data) ? schoolRes.data : []);
@@ -204,7 +227,9 @@ export function StudentManagementView({ token }) {
 
   const handleBatchChange = (batchId) => {
     const batch = batches.find((b) => Number(b.batch_id) === Number(batchId));
-    const prog = batch ? programs.find((p) => Number(p.programme_id) === Number(batch.programme_id)) : null;
+    const prog = batch
+      ? programs.find((p) => Number(p.programme_id) === Number(batch.programme_id))
+      : null;
 
     setFormData((prev) => ({
       ...prev,
@@ -216,24 +241,21 @@ export function StudentManagementView({ token }) {
     }));
   };
 
+  const setField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const handlePhotoChange = ({ file, remove }) => {
+    setPhotoFile(file);
+    setRemovePhoto(remove);
+  };
+
   const handleOpenCreate = () => {
     setFormData({
-      register_no: "",
-      full_name: "",
-      email: "",
-      phone: "",
-      gender: "",
-      date_of_birth: "",
-      blood_group: "",
-      status: "ACTIVE",
+      ...EMPTY_FORM,
       school_id: schools[0]?.school_id ? String(schools[0].school_id) : "",
-      department_id: "",
-      programme_id: "",
-      batch_id: "",
-      section_id: "",
-      username: "",
-      password: "",
     });
+    setPhotoFile(null);
+    setRemovePhoto(false);
     setFormError("");
     setIsCreateOpen(true);
   };
@@ -257,7 +279,35 @@ export function StudentManagementView({ token }) {
       username: student.username || student.register_no || "",
       password: "",
     });
+    setPhotoFile(null);
+    setRemovePhoto(false);
     setFormError("");
+  };
+
+  const buildPayload = () => ({
+    register_no: formData.register_no.trim(),
+    full_name: formData.full_name.trim(),
+    email: formData.email.trim() || null,
+    phone: formData.phone.trim() || null,
+    gender: formData.gender || null,
+    date_of_birth: formData.date_of_birth || null,
+    blood_group: formData.blood_group || null,
+    status: formData.status,
+    batch_id: Number(formData.batch_id),
+    school_id: formData.school_id ? Number(formData.school_id) : undefined,
+    department_id: formData.department_id ? Number(formData.department_id) : undefined,
+    programme_id: formData.programme_id ? Number(formData.programme_id) : undefined,
+    section_id: formData.section_id ? Number(formData.section_id) : undefined,
+    username: formData.username.trim() || undefined,
+  });
+
+  const validateForm = () => {
+    if (!formData.register_no.trim() || !formData.full_name.trim()) {
+      throw new Error("Register number and full name are required.");
+    }
+    if (!formData.batch_id) {
+      throw new Error("Please select an academic batch cohort.");
+    }
   };
 
   const handleCreateSubmit = async (e) => {
@@ -266,34 +316,23 @@ export function StudentManagementView({ token }) {
     setSubmitting(true);
 
     try {
-      if (!formData.register_no.trim() || !formData.full_name.trim()) {
-        throw new Error("Register number and full name are required.");
-      }
-      if (!formData.batch_id) {
-        throw new Error("Please select an academic batch cohort.");
-      }
+      validateForm();
 
-      await createStudent(token, {
-        register_no: formData.register_no.trim(),
-        full_name: formData.full_name.trim(),
-        email: formData.email.trim() || null,
-        phone: formData.phone.trim() || null,
-        gender: formData.gender || null,
-        date_of_birth: formData.date_of_birth || null,
-        blood_group: formData.blood_group || null,
-        status: formData.status,
-        batch_id: Number(formData.batch_id),
-        school_id: formData.school_id ? Number(formData.school_id) : undefined,
-        department_id: formData.department_id ? Number(formData.department_id) : undefined,
-        programme_id: formData.programme_id ? Number(formData.programme_id) : undefined,
-        section_id: formData.section_id ? Number(formData.section_id) : undefined,
-        username: formData.username.trim() || undefined,
-        password: formData.password || undefined,
-      });
+      const { photoError } = await createStudentWithPhoto(
+        token,
+        { ...buildPayload(), password: formData.password || undefined },
+        photoFile,
+      );
 
       setIsCreateOpen(false);
-      setActionSuccess("Student registered successfully with complete academic records!");
-      setTimeout(() => setActionSuccess(""), 4000);
+      if (photoError) {
+        setError(
+          `Student registered, but the photo was not saved: ${photoError.message} Open Edit to try again.`,
+        );
+      } else {
+        setActionSuccess("Student registered successfully with complete academic records!");
+        setTimeout(() => setActionSuccess(""), 4000);
+      }
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       setFormError(err.message || "Failed to create student.");
@@ -309,33 +348,29 @@ export function StudentManagementView({ token }) {
     setSubmitting(true);
 
     try {
-      if (!formData.register_no.trim() || !formData.full_name.trim()) {
-        throw new Error("Register number and full name are required.");
-      }
-      if (!formData.batch_id) {
-        throw new Error("Please select an academic batch cohort.");
-      }
+      validateForm();
 
-      await updateStudent(token, editingStudent.student_id, {
-        register_no: formData.register_no.trim(),
-        full_name: formData.full_name.trim(),
-        email: formData.email.trim() || null,
-        phone: formData.phone.trim() || null,
-        gender: formData.gender || null,
-        date_of_birth: formData.date_of_birth || null,
-        blood_group: formData.blood_group || null,
-        status: formData.status,
-        batch_id: Number(formData.batch_id),
-        school_id: formData.school_id ? Number(formData.school_id) : undefined,
-        department_id: formData.department_id ? Number(formData.department_id) : undefined,
-        programme_id: formData.programme_id ? Number(formData.programme_id) : undefined,
-        section_id: formData.section_id ? Number(formData.section_id) : undefined,
-        username: formData.username.trim() || undefined,
-      });
+      await updateStudent(token, editingStudent.student_id, buildPayload());
+
+      // Photo uses its own upload/delete route
+      let photoError = null;
+      try {
+        if (photoFile) {
+          await uploadStudentPhoto(token, editingStudent.student_id, photoFile);
+        } else if (removePhoto) {
+          await deleteStudentPhoto(token, editingStudent.student_id);
+        }
+      } catch (err) {
+        photoError = err;
+      }
 
       setEditingStudent(null);
-      setActionSuccess("Student academic profile updated successfully!");
-      setTimeout(() => setActionSuccess(""), 4000);
+      if (photoError) {
+        setError(`Details saved, but the photo change failed: ${photoError.message}`);
+      } else {
+        setActionSuccess("Student academic profile updated successfully!");
+        setTimeout(() => setActionSuccess(""), 4000);
+      }
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       setFormError(err.message || "Failed to update student.");
@@ -355,12 +390,217 @@ export function StudentManagementView({ token }) {
       setTimeout(() => setActionSuccess(""), 4000);
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
-      setError(err.message || "Cannot delete student with associated enrollment or attendance records.");
+      setError(
+        err.message ||
+          "Cannot delete student with associated enrollment or attendance records.",
+      );
       setDeletingStudent(null);
     } finally {
       setSubmitting(false);
     }
   };
+
+  /* Shared form body used by both the Register and Edit modals */
+  const renderFormFields = () => (
+    <>
+      {/* Section 1: Academic placement */}
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
+        <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
+          <AcademicCapIcon className="h-4 w-4" />
+          Academic Hierarchy & Placement
+        </h5>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <FormField label="School of Study">
+            <select
+              value={formData.school_id}
+              onChange={(e) => handleSchoolChange(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">All / Unspecified School</option>
+              {schools.map((s) => (
+                <option key={s.school_id} value={s.school_id}>
+                  {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Academic Department">
+            <select
+              value={formData.department_id}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">All / Unspecified Department</option>
+              {filteredDepartments.map((d) => (
+                <option key={d.department_id} value={d.department_id}>
+                  {d.name} {d.code ? `(${d.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Degree Programme" className="md:col-span-2">
+            <select
+              value={formData.programme_id}
+              onChange={(e) => handleProgrammeChange(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">Select an Academic Programme</option>
+              {filteredPrograms.map((p) => (
+                <option key={p.programme_id} value={p.programme_id}>
+                  {p.name} {p.degree_code ? `[${p.degree_code}]` : ""}{" "}
+                  {p.duration_years ? `— ${p.duration_years} yrs` : ""}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Batch Cohort" required>
+            <select
+              required
+              value={formData.batch_id}
+              onChange={(e) => handleBatchChange(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">Select Academic Batch</option>
+              {filteredBatches.map((b) => (
+                <option key={b.batch_id} value={b.batch_id}>
+                  Batch {b.label || `#${b.batch_id}`}{" "}
+                  {b.programme_name ? `(${b.programme_name})` : ""}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Class Section (Optional)">
+            <select
+              value={formData.section_id}
+              onChange={setField("section_id")}
+              className={SELECT_CLASS}
+            >
+              <option value="">Unassigned Section</option>
+              {filteredSections.map((s) => (
+                <option key={s.section_id} value={s.section_id}>
+                  Section {s.section_code} {s.subject_code ? `— ${s.subject_code}` : ""} (Max:{" "}
+                  {s.max_strength || 60})
+                </option>
+              ))}
+            </select>
+          </FormField>
+        </div>
+      </div>
+
+      {/* Section 2: Identity & contact */}
+      <div className="space-y-3">
+        <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">
+          <UserIcon className="h-4 w-4" />
+          Identity & Contact Information
+        </h5>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <FormField label="Register Number" required upper>
+            <input
+              type="text"
+              required
+              value={formData.register_no}
+              onChange={setField("register_no")}
+              placeholder="e.g. 2024CS0101"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Full Name" required upper>
+            <input
+              type="text"
+              required
+              value={formData.full_name}
+              onChange={setField("full_name")}
+              placeholder="e.g. Aarav Kumar"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Email Address" upper>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={setField("email")}
+              placeholder="aarav@joy.edu.in"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Phone Number" upper>
+            <input
+              type="text"
+              value={formData.phone}
+              onChange={setField("phone")}
+              placeholder="+91 9876543210"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+        </div>
+      </div>
+
+      {/* Section 3: Demographics & status */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <FormField label="Gender" upper>
+          <select
+            value={formData.gender}
+            onChange={setField("gender")}
+            className={SELECT_CLASS}
+          >
+            <option value="">Unspecified</option>
+            {GENDER_OPTIONS.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        <FormField label="Date of Birth" upper>
+          <input
+            type="date"
+            value={formData.date_of_birth}
+            onChange={setField("date_of_birth")}
+            className={INPUT_CLASS}
+          />
+        </FormField>
+
+        <FormField label="Blood Group" upper>
+          <select
+            value={formData.blood_group}
+            onChange={setField("blood_group")}
+            className={SELECT_CLASS}
+          >
+            <option value="">Select Blood Group</option>
+            {BLOOD_GROUPS.map((bg) => (
+              <option key={bg} value={bg}>
+                {bg}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        <FormField label="Academic Status" upper>
+          <select
+            value={formData.status}
+            onChange={setField("status")}
+            className={SELECT_CLASS}
+          >
+            {STUDENT_STATUSES.map((st) => (
+              <option key={st} value={st}>
+                {st}
+              </option>
+            ))}
+          </select>
+        </FormField>
+      </div>
+    </>
+  );
 
   const columns = [
     {
@@ -381,15 +621,18 @@ export function StudentManagementView({ token }) {
       header: "Student Name",
       key: "full_name",
       render: (row) => (
-        <div>
-          <button
-            type="button"
-            onClick={() => setViewingStudent(row)}
-            className="font-bold text-gray-900 hover:text-green-800 text-left transition cursor-pointer"
-          >
-            {row.full_name}
-          </button>
-          <p className="text-xs text-gray-400">{row.email || "No email registered"}</p>
+        <div className="flex items-center gap-3">
+          <Avatar src={getPhotoPath(row)} name={row.full_name} size="sm" />
+          <div>
+            <button
+              type="button"
+              onClick={() => setViewingStudent(row)}
+              className="font-bold text-gray-900 hover:text-green-800 text-left transition cursor-pointer"
+            >
+              {row.full_name}
+            </button>
+            <p className="text-xs text-gray-400">{row.email || "No email registered"}</p>
+          </div>
         </div>
       ),
     },
@@ -399,7 +642,8 @@ export function StudentManagementView({ token }) {
       render: (row) => (
         <div>
           <p className="text-xs font-semibold text-gray-800">
-            {row.programme_name || (row.programme_id ? `Programme #${row.programme_id}` : "Unassigned")}
+            {row.programme_name ||
+              (row.programme_id ? `Programme #${row.programme_id}` : "Unassigned")}
           </p>
           <p className="text-[11px] text-gray-400">
             {row.department_name ? `${row.department_name}` : ""}
@@ -509,243 +753,15 @@ export function StudentManagementView({ token }) {
         <form onSubmit={handleCreateSubmit} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
 
-          {/* Section 1: Academic Placement */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
-              <AcademicCapIcon className="h-4 w-4" />
-              Academic Hierarchy & Placement
-            </h5>
+          <PhotoUpload
+            name={formData.full_name}
+            file={photoFile}
+            removed={removePhoto}
+            disabled={submitting}
+            onChange={handlePhotoChange}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* School */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  School of Study
-                </label>
-                <select
-                  value={formData.school_id}
-                  onChange={(e) => handleSchoolChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">All / Unspecified School</option>
-                  {schools.map((s) => (
-                    <option key={s.school_id} value={s.school_id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Academic Department
-                </label>
-                <select
-                  value={formData.department_id}
-                  onChange={(e) => handleDepartmentChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">All / Unspecified Department</option>
-                  {filteredDepartments.map((d) => (
-                    <option key={d.department_id} value={d.department_id}>
-                      {d.name} {d.code ? `(${d.code})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Programme */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-gray-700">
-                  Degree Programme
-                </label>
-                <select
-                  value={formData.programme_id}
-                  onChange={(e) => handleProgrammeChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select an Academic Programme</option>
-                  {filteredPrograms.map((p) => (
-                    <option key={p.programme_id} value={p.programme_id}>
-                      {p.name} {p.degree_code ? `[${p.degree_code}]` : ""} {p.duration_years ? `— ${p.duration_years} yrs` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Batch Cohort */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Batch Cohort <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={formData.batch_id}
-                  onChange={(e) => handleBatchChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select Academic Batch</option>
-                  {filteredBatches.map((b) => (
-                    <option key={b.batch_id} value={b.batch_id}>
-                      Batch {b.label || `#${b.batch_id}`} {b.programme_name ? `(${b.programme_name})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Section */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Class Section (Optional)
-                </label>
-                <select
-                  value={formData.section_id}
-                  onChange={(e) => setFormData({ ...formData, section_id: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Unassigned Section</option>
-                  {filteredSections.map((s) => (
-                    <option key={s.section_id} value={s.section_id}>
-                      Section {s.section_code} {s.subject_code ? `— ${s.subject_code}` : ""} (Max: {s.max_strength || 60})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Student Identity & Contact */}
-          <div className="space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">
-              <UserIcon className="h-4 w-4" />
-              Identity & Contact Information
-            </h5>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Register Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.register_no}
-                  onChange={(e) => setFormData({ ...formData, register_no: e.target.value })}
-                  placeholder="e.g. 2024CS0101"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  placeholder="e.g. Aarav Kumar"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="aarav@joy.edu.in"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 9876543210"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Demographics & Status */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Gender
-              </label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Unspecified</option>
-                {GENDER_OPTIONS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Date of Birth
-              </label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Blood Group
-              </label>
-              <select
-                value={formData.blood_group}
-                onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Select Blood Group</option>
-                {BLOOD_GROUPS.map((bg) => (
-                  <option key={bg} value={bg}>
-                    {bg}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                {STUDENT_STATUSES.map((st) => (
-                  <option key={st} value={st}>
-                    {st}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          {renderFormFields()}
 
           <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
             <button
@@ -776,234 +792,16 @@ export function StudentManagementView({ token }) {
         <form onSubmit={handleEditSubmit} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
 
-          {/* Section 1: Academic Hierarchy */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
-              <AcademicCapIcon className="h-4 w-4" />
-              Academic Placement & Department
-            </h5>
+          <PhotoUpload
+            currentUrl={getPhotoPath(editingStudent)}
+            name={formData.full_name}
+            file={photoFile}
+            removed={removePhoto}
+            disabled={submitting}
+            onChange={handlePhotoChange}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  School of Study
-                </label>
-                <select
-                  value={formData.school_id}
-                  onChange={(e) => handleSchoolChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">All / Unspecified School</option>
-                  {schools.map((s) => (
-                    <option key={s.school_id} value={s.school_id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Department
-                </label>
-                <select
-                  value={formData.department_id}
-                  onChange={(e) => handleDepartmentChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">All / Unspecified Department</option>
-                  {filteredDepartments.map((d) => (
-                    <option key={d.department_id} value={d.department_id}>
-                      {d.name} {d.code ? `(${d.code})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-gray-700">
-                  Degree Programme
-                </label>
-                <select
-                  value={formData.programme_id}
-                  onChange={(e) => handleProgrammeChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select an Academic Programme</option>
-                  {filteredPrograms.map((p) => (
-                    <option key={p.programme_id} value={p.programme_id}>
-                      {p.name} {p.degree_code ? `[${p.degree_code}]` : ""} {p.duration_years ? `— ${p.duration_years} yrs` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Batch Cohort <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={formData.batch_id}
-                  onChange={(e) => handleBatchChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select Academic Batch</option>
-                  {filteredBatches.map((b) => (
-                    <option key={b.batch_id} value={b.batch_id}>
-                      Batch {b.label || `#${b.batch_id}`} {b.programme_name ? `(${b.programme_name})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Class Section
-                </label>
-                <select
-                  value={formData.section_id}
-                  onChange={(e) => setFormData({ ...formData, section_id: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Unassigned Section</option>
-                  {filteredSections.map((s) => (
-                    <option key={s.section_id} value={s.section_id}>
-                      Section {s.section_code} {s.subject_code ? `— ${s.subject_code}` : ""} (Max: {s.max_strength || 60})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Personal & Contact */}
-          <div className="space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">
-              <UserIcon className="h-4 w-4" />
-              Identity & Contact Details
-            </h5>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Register Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.register_no}
-                  onChange={(e) => setFormData({ ...formData, register_no: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Demographics & Status */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Gender
-              </label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Unspecified</option>
-                {GENDER_OPTIONS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Date of Birth
-              </label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Blood Group
-              </label>
-              <select
-                value={formData.blood_group}
-                onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Select Blood Group</option>
-                {BLOOD_GROUPS.map((bg) => (
-                  <option key={bg} value={bg}>
-                    {bg}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Academic Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                {STUDENT_STATUSES.map((st) => (
-                  <option key={st} value={st}>
-                    {st}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          {renderFormFields()}
 
           <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
             <button
@@ -1036,9 +834,12 @@ export function StudentManagementView({ token }) {
             {/* Header info */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div className="flex items-center gap-3.5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100 text-green-800">
-                  <AcademicCapIcon className="h-6 w-6" />
-                </div>
+                <Avatar
+                  src={getPhotoPath(viewingStudent)}
+                  name={viewingStudent.full_name}
+                  size="md"
+                  className="ring-2 ring-green-600/20"
+                />
                 <div>
                   <h4 className="text-base font-bold text-gray-900">
                     {viewingStudent.full_name}
@@ -1090,7 +891,10 @@ export function StudentManagementView({ token }) {
                 <div className="sm:col-span-2">
                   <span className="text-gray-500 font-medium">Academic Programme</span>
                   <p className="mt-0.5 font-semibold text-gray-900">
-                    {viewingStudent.programme_name || (viewingStudent.programme_id ? `Programme #${viewingStudent.programme_id}` : "—")}
+                    {viewingStudent.programme_name ||
+                      (viewingStudent.programme_id
+                        ? `Programme #${viewingStudent.programme_id}`
+                        : "—")}
                   </p>
                 </div>
 
@@ -1111,14 +915,18 @@ export function StudentManagementView({ token }) {
                 <div>
                   <span className="text-gray-500 font-medium">Class Section</span>
                   <p className="mt-0.5 font-semibold text-gray-900">
-                    {viewingStudent.section_code ? `Section ${viewingStudent.section_code}` : "Unassigned"}
+                    {viewingStudent.section_code
+                      ? `Section ${viewingStudent.section_code}`
+                      : "Unassigned"}
                   </p>
                 </div>
 
                 <div>
                   <span className="text-gray-500 font-medium">Programme Duration</span>
                   <p className="mt-0.5 font-semibold text-gray-900">
-                    {viewingStudent.duration_years ? `${viewingStudent.duration_years} Years` : "—"}
+                    {viewingStudent.duration_years
+                      ? `${viewingStudent.duration_years} Years`
+                      : "—"}
                   </p>
                 </div>
               </div>
@@ -1228,8 +1036,9 @@ export function StudentManagementView({ token }) {
             Delete {deletingStudent?.full_name}?
           </h4>
           <p className="mt-2 text-xs text-gray-500">
-            This will permanently remove student {deletingStudent?.register_no} and their authentication account.
-            Database foreign key safeguards will prevent deletion if active enrollment or attendance history exists.
+            This will permanently remove student {deletingStudent?.register_no} and their
+            authentication account. Database foreign key safeguards will prevent deletion if
+            active enrollment or attendance history exists.
           </p>
 
           <div className="mt-6 flex justify-center gap-3">
@@ -1241,7 +1050,7 @@ export function StudentManagementView({ token }) {
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
               disabled={submitting}
               onClick={handleDeleteConfirm}
               className="w-1/2 rounded-lg bg-red-700 px-4 py-2 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50 cursor-pointer"

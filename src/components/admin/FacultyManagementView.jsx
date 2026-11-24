@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   getFaculty,
-  createFaculty,
+  createFacultyWithPhoto,
   updateFaculty,
   deleteFaculty,
   getDepartments,
   getDesignations,
+  uploadFacultyPhoto,
+  deleteFacultyPhoto,
 } from "../../api/admin";
 import { getSchools } from "../../api/academics";
 import DataTable from "../common/DataTable";
@@ -13,13 +15,15 @@ import Badge from "../common/Badge";
 import Modal from "../common/Modal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
+import Avatar from "../common/Avatar";
+import PhotoUpload from "../common/PhotoUpload";
+import { getPhotoPath } from "../../utils/photo";
 import {
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
   EyeIcon,
   ExclamationTriangleIcon,
-  AcademicCapIcon,
   BuildingLibraryIcon,
   UserIcon,
   IdentificationIcon,
@@ -36,6 +40,42 @@ const GENDER_OPTIONS = [
 ];
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
+
+const INPUT_CLASS =
+  "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none";
+const SELECT_CLASS = `${INPUT_CLASS} bg-white`;
+
+const EMPTY_FORM = {
+  employee_code: "",
+  full_name: "",
+  email: "",
+  phone: "",
+  gender: "",
+  date_of_birth: "",
+  blood_group: "",
+  joining_year: "",
+  in_charge_class: "",
+  school_id: "",
+  department_id: "",
+  designation_id: "",
+  is_active: 1,
+  username: "",
+  password: "",
+};
+
+function FormField({ label, required = false, upper = false, children }) {
+  return (
+    <div>
+      <label
+        className={`block text-xs font-semibold text-gray-700 ${upper ? "uppercase" : ""}`}
+      >
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
 
 export function FacultyManagementView({ token }) {
   const [facultyList, setFacultyList] = useState([]);
@@ -56,23 +96,11 @@ export function FacultyManagementView({ token }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const [formData, setFormData] = useState({
-    employee_code: "",
-    full_name: "",
-    email: "",
-    phone: "",
-    gender: "",
-    date_of_birth: "",
-    blood_group: "",
-    joining_year: "",
-    in_charge_class: "",
-    school_id: "",
-    department_id: "",
-    designation_id: "",
-    is_active: 1,
-    username: "",
-    password: "",
-  });
+  // Photo state (selected file / removal flag for the open form)
+  const [photoFile, setPhotoFile] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
@@ -154,28 +182,29 @@ export function FacultyManagementView({ token }) {
     }));
   };
 
+  const setField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const handlePhotoChange = ({ file, remove }) => {
+    setPhotoFile(file);
+    setRemovePhoto(remove);
+  };
+
   const handleOpenCreate = () => {
     const defaultSchool = schools[0];
-    const defaultDept = departments.find((d) => d.school_id === defaultSchool?.school_id) || departments[0];
+    const defaultDept =
+      departments.find((d) => d.school_id === defaultSchool?.school_id) || departments[0];
     const defaultDesg = designations[0];
 
     setFormData({
-      employee_code: "",
-      full_name: "",
-      email: "",
-      phone: "",
-      gender: "",
-      date_of_birth: "",
-      blood_group: "",
+      ...EMPTY_FORM,
       joining_year: new Date().getFullYear(),
-      in_charge_class: "",
       school_id: defaultSchool?.school_id ? String(defaultSchool.school_id) : "",
       department_id: defaultDept?.department_id ? String(defaultDept.department_id) : "",
       designation_id: defaultDesg?.designation_id ? String(defaultDesg.designation_id) : "",
-      is_active: 1,
-      username: "",
-      password: "",
     });
+    setPhotoFile(null);
+    setRemovePhoto(false);
     setFormError("");
     setIsCreateOpen(true);
   };
@@ -193,14 +222,46 @@ export function FacultyManagementView({ token }) {
       blood_group: faculty.blood_group || "",
       joining_year: faculty.joining_year || "",
       in_charge_class: faculty.in_charge_class || "",
-      school_id: faculty.school_id ? String(faculty.school_id) : (facultyDept?.school_id ? String(facultyDept.school_id) : ""),
+      school_id: faculty.school_id
+        ? String(faculty.school_id)
+        : facultyDept?.school_id
+          ? String(facultyDept.school_id)
+          : "",
       department_id: faculty.department_id ? String(faculty.department_id) : "",
       designation_id: faculty.designation_id ? String(faculty.designation_id) : "",
       is_active: faculty.is_active ? 1 : 0,
       username: faculty.username || faculty.employee_code || "",
       password: "",
     });
+    setPhotoFile(null);
+    setRemovePhoto(false);
     setFormError("");
+  };
+
+  const buildPayload = () => ({
+    employee_code: formData.employee_code.trim(),
+    full_name: formData.full_name.trim(),
+    email: formData.email.trim() || null,
+    phone: formData.phone.trim() || null,
+    gender: formData.gender || null,
+    date_of_birth: formData.date_of_birth || null,
+    blood_group: formData.blood_group || null,
+    joining_year: formData.joining_year ? Number(formData.joining_year) : null,
+    in_charge_class: formData.in_charge_class.trim() || null,
+    school_id: Number(formData.school_id),
+    department_id: formData.department_id ? Number(formData.department_id) : null,
+    designation_id: formData.designation_id ? Number(formData.designation_id) : null,
+    is_active: Number(formData.is_active),
+    username: formData.username.trim() || undefined,
+  });
+
+  const validateForm = () => {
+    if (!formData.employee_code.trim() || !formData.full_name.trim()) {
+      throw new Error("Employee code and full name are required.");
+    }
+    if (!formData.school_id) {
+      throw new Error("Please select an institutional School of Study.");
+    }
   };
 
   const handleCreateSubmit = async (e) => {
@@ -209,34 +270,23 @@ export function FacultyManagementView({ token }) {
     setSubmitting(true);
 
     try {
-      if (!formData.employee_code.trim() || !formData.full_name.trim()) {
-        throw new Error("Employee code and full name are required.");
-      }
-      if (!formData.school_id) {
-        throw new Error("Please select an institutional School of Study.");
-      }
+      validateForm();
 
-      await createFaculty(token, {
-        employee_code: formData.employee_code.trim(),
-        full_name: formData.full_name.trim(),
-        email: formData.email.trim() || null,
-        phone: formData.phone.trim() || null,
-        gender: formData.gender || null,
-        date_of_birth: formData.date_of_birth || null,
-        blood_group: formData.blood_group || null,
-        joining_year: formData.joining_year ? Number(formData.joining_year) : null,
-        in_charge_class: formData.in_charge_class.trim() || null,
-        school_id: Number(formData.school_id),
-        department_id: formData.department_id ? Number(formData.department_id) : null,
-        designation_id: formData.designation_id ? Number(formData.designation_id) : null,
-        is_active: Number(formData.is_active),
-        username: formData.username.trim() || undefined,
-        password: formData.password || undefined,
-      });
+      const { photoError } = await createFacultyWithPhoto(
+        token,
+        { ...buildPayload(), password: formData.password || undefined },
+        photoFile,
+      );
 
       setIsCreateOpen(false);
-      setActionSuccess("Faculty member profile created successfully!");
-      setTimeout(() => setActionSuccess(""), 4000);
+      if (photoError) {
+        setError(
+          `Faculty member created, but the photo was not saved: ${photoError.message} Open Edit to try again.`,
+        );
+      } else {
+        setActionSuccess("Faculty member profile created successfully!");
+        setTimeout(() => setActionSuccess(""), 4000);
+      }
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       setFormError(err.message || "Failed to create faculty member.");
@@ -252,33 +302,29 @@ export function FacultyManagementView({ token }) {
     setSubmitting(true);
 
     try {
-      if (!formData.employee_code.trim() || !formData.full_name.trim()) {
-        throw new Error("Employee code and full name are required.");
-      }
-      if (!formData.school_id) {
-        throw new Error("Please select an institutional School of Study.");
-      }
+      validateForm();
 
-      await updateFaculty(token, editingFaculty.faculty_id, {
-        employee_code: formData.employee_code.trim(),
-        full_name: formData.full_name.trim(),
-        email: formData.email.trim() || null,
-        phone: formData.phone.trim() || null,
-        gender: formData.gender || null,
-        date_of_birth: formData.date_of_birth || null,
-        blood_group: formData.blood_group || null,
-        joining_year: formData.joining_year ? Number(formData.joining_year) : null,
-        in_charge_class: formData.in_charge_class.trim() || null,
-        school_id: Number(formData.school_id),
-        department_id: formData.department_id ? Number(formData.department_id) : null,
-        designation_id: formData.designation_id ? Number(formData.designation_id) : null,
-        is_active: Number(formData.is_active),
-        username: formData.username.trim() || undefined,
-      });
+      await updateFaculty(token, editingFaculty.faculty_id, buildPayload());
+
+      // Photo uses its own upload/delete route
+      let photoError = null;
+      try {
+        if (photoFile) {
+          await uploadFacultyPhoto(token, editingFaculty.faculty_id, photoFile);
+        } else if (removePhoto) {
+          await deleteFacultyPhoto(token, editingFaculty.faculty_id);
+        }
+      } catch (err) {
+        photoError = err;
+      }
 
       setEditingFaculty(null);
-      setActionSuccess("Faculty details updated successfully!");
-      setTimeout(() => setActionSuccess(""), 4000);
+      if (photoError) {
+        setError(`Details saved, but the photo change failed: ${photoError.message}`);
+      } else {
+        setActionSuccess("Faculty details updated successfully!");
+        setTimeout(() => setActionSuccess(""), 4000);
+      }
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       setFormError(err.message || "Failed to update faculty member.");
@@ -305,6 +351,200 @@ export function FacultyManagementView({ token }) {
     }
   };
 
+  /* Shared form body used by both the Create and Edit modals */
+  const renderFormFields = (isEdit) => (
+    <>
+      {/* Section 1: Academic affiliation */}
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
+        <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
+          <BuildingLibraryIcon className="h-4 w-4" />
+          Academic Department & Designation
+        </h5>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <FormField label="School of Study" required>
+            <select
+              required
+              value={formData.school_id}
+              onChange={(e) => handleSchoolChange(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">Select School</option>
+              {schools.map((s) => (
+                <option key={s.school_id} value={s.school_id}>
+                  {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Department">
+            <select
+              value={formData.department_id}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">All / Unassigned Department</option>
+              {filteredDepartments.map((d) => (
+                <option key={d.department_id} value={d.department_id}>
+                  {d.name} {d.code ? `(${d.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Designation">
+            <select
+              value={formData.designation_id}
+              onChange={setField("designation_id")}
+              className={SELECT_CLASS}
+            >
+              <option value="">Select Designation</option>
+              {designations.map((d) => (
+                <option key={d.designation_id} value={d.designation_id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="In-Charge Class">
+            <input
+              type="text"
+              value={formData.in_charge_class}
+              onChange={setField("in_charge_class")}
+              placeholder="e.g. CSE-AIML Sec A"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+        </div>
+      </div>
+
+      {/* Section 2: Identity & contact */}
+      <div className="space-y-3">
+        <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">
+          <UserIcon className="h-4 w-4" />
+          Identity & Contact Details
+        </h5>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <FormField label="Employee Code" required upper>
+            <input
+              type="text"
+              required
+              value={formData.employee_code}
+              onChange={setField("employee_code")}
+              placeholder="e.g. FAC-CS-004"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Full Name" required upper>
+            <input
+              type="text"
+              required
+              value={formData.full_name}
+              onChange={setField("full_name")}
+              placeholder="e.g. Dr. Rajesh Kumar"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Institutional Email" upper>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={setField("email")}
+              placeholder="rajesh.kumar@joyuniversity.edu.in"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Phone Number" upper>
+            <input
+              type="text"
+              value={formData.phone}
+              onChange={setField("phone")}
+              placeholder="+91 9876543210"
+              className={INPUT_CLASS}
+            />
+          </FormField>
+        </div>
+      </div>
+
+      {/* Section 3: Demographics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <FormField label="Gender" upper>
+          <select
+            value={formData.gender}
+            onChange={setField("gender")}
+            className={SELECT_CLASS}
+          >
+            <option value="">Unspecified</option>
+            {GENDER_OPTIONS.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        <FormField label="Date of Birth" upper>
+          <input
+            type="date"
+            value={formData.date_of_birth}
+            onChange={setField("date_of_birth")}
+            className={INPUT_CLASS}
+          />
+        </FormField>
+
+        <FormField label="Blood Group" upper>
+          <select
+            value={formData.blood_group}
+            onChange={setField("blood_group")}
+            className={SELECT_CLASS}
+          >
+            <option value="">Select Blood Group</option>
+            {BLOOD_GROUPS.map((bg) => (
+              <option key={bg} value={bg}>
+                {bg}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        <FormField label="Joining Year" upper>
+          <input
+            type="number"
+            min="1980"
+            max="2100"
+            value={formData.joining_year}
+            onChange={setField("joining_year")}
+            className={INPUT_CLASS}
+          />
+        </FormField>
+      </div>
+
+      {/* Status (edit only) */}
+      {isEdit && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <FormField label="Status" upper>
+            <select
+              value={formData.is_active}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, is_active: Number(e.target.value) }))
+              }
+              className={SELECT_CLASS}
+            >
+              <option value={1}>ACTIVE</option>
+              <option value={0}>INACTIVE</option>
+            </select>
+          </FormField>
+        </div>
+      )}
+    </>
+  );
+
   const columns = [
     {
       header: "Code",
@@ -324,15 +564,18 @@ export function FacultyManagementView({ token }) {
       header: "Faculty Member",
       key: "full_name",
       render: (row) => (
-        <div>
-          <button
-            type="button"
-            onClick={() => setViewingFaculty(row)}
-            className="font-bold text-gray-900 hover:text-green-800 text-left transition cursor-pointer"
-          >
-            {row.full_name}
-          </button>
-          <p className="text-xs text-gray-400">{row.email || "No email"}</p>
+        <div className="flex items-center gap-3">
+          <Avatar src={getPhotoPath(row)} name={row.full_name} size="sm" />
+          <div>
+            <button
+              type="button"
+              onClick={() => setViewingFaculty(row)}
+              className="font-bold text-gray-900 hover:text-green-800 text-left transition cursor-pointer"
+            >
+              {row.full_name}
+            </button>
+            <p className="text-xs text-gray-400">{row.email || "No email"}</p>
+          </div>
         </div>
       ),
     },
@@ -404,7 +647,7 @@ export function FacultyManagementView({ token }) {
 
   const activeCount = useMemo(
     () => facultyList.filter((f) => f.is_active === 1 || f.is_active === true).length,
-    [facultyList]
+    [facultyList],
   );
   const inactiveCount = facultyList.length - activeCount;
 
@@ -488,9 +731,12 @@ export function FacultyManagementView({ token }) {
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div className="flex items-center gap-3.5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100 text-green-800">
-                  <AcademicCapIcon className="h-6 w-6" />
-                </div>
+                <Avatar
+                  src={getPhotoPath(viewingFaculty)}
+                  name={viewingFaculty.full_name}
+                  size="md"
+                  className="ring-2 ring-green-600/20"
+                />
                 <div>
                   <h4 className="text-base font-bold text-gray-900">
                     {viewingFaculty.full_name}
@@ -651,212 +897,15 @@ export function FacultyManagementView({ token }) {
         <form onSubmit={handleCreateSubmit} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
 
-          {/* Section 1: Academic Affiliation */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
-              <BuildingLibraryIcon className="h-4 w-4" />
-              Academic Department & Designation
-            </h5>
+          <PhotoUpload
+            name={formData.full_name}
+            file={photoFile}
+            removed={removePhoto}
+            disabled={submitting}
+            onChange={handlePhotoChange}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  School of Study <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={formData.school_id}
-                  onChange={(e) => handleSchoolChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select School</option>
-                  {schools.map((s) => (
-                    <option key={s.school_id} value={s.school_id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Department
-                </label>
-                <select
-                  value={formData.department_id}
-                  onChange={(e) => handleDepartmentChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">All / Unassigned Department</option>
-                  {filteredDepartments.map((d) => (
-                    <option key={d.department_id} value={d.department_id}>
-                      {d.name} {d.code ? `(${d.code})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Designation
-                </label>
-                <select
-                  value={formData.designation_id}
-                  onChange={(e) => setFormData({ ...formData, designation_id: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select Designation</option>
-                  {designations.map((d) => (
-                    <option key={d.designation_id} value={d.designation_id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  In-Charge Class
-                </label>
-                <input
-                  type="text"
-                  value={formData.in_charge_class}
-                  onChange={(e) => setFormData({ ...formData, in_charge_class: e.target.value })}
-                  placeholder="e.g. CSE-AIML Sec A"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Identity & Contact */}
-          <div className="space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">
-              <UserIcon className="h-4 w-4" />
-              Identity & Contact Details
-            </h5>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Employee Code <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.employee_code}
-                  onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
-                  placeholder="e.g. FAC-CS-004"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  placeholder="e.g. Dr. Rajesh Kumar"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Institutional Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="rajesh.kumar@joyuniversity.edu.in"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 9876543210"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Demographics & Status */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Gender
-              </label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Unspecified</option>
-                {GENDER_OPTIONS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Date of Birth
-              </label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Blood Group
-              </label>
-              <select
-                value={formData.blood_group}
-                onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Select Blood Group</option>
-                {BLOOD_GROUPS.map((bg) => (
-                  <option key={bg} value={bg}>
-                    {bg}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Joining Year
-              </label>
-              <input
-                type="number"
-                min="1980"
-                max="2100"
-                value={formData.joining_year}
-                onChange={(e) => setFormData({ ...formData, joining_year: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              />
-            </div>
-          </div>
+          {renderFormFields(false)}
 
           <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
             <button
@@ -887,209 +936,16 @@ export function FacultyManagementView({ token }) {
         <form onSubmit={handleEditSubmit} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
 
-          {/* Section 1: Academic Affiliation */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-900">
-              <BuildingLibraryIcon className="h-4 w-4" />
-              Academic Department & Designation
-            </h5>
+          <PhotoUpload
+            currentUrl={getPhotoPath(editingFaculty)}
+            name={formData.full_name}
+            file={photoFile}
+            removed={removePhoto}
+            disabled={submitting}
+            onChange={handlePhotoChange}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  School of Study <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={formData.school_id}
-                  onChange={(e) => handleSchoolChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select School</option>
-                  {schools.map((s) => (
-                    <option key={s.school_id} value={s.school_id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Department
-                </label>
-                <select
-                  value={formData.department_id}
-                  onChange={(e) => handleDepartmentChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">All / Unassigned Department</option>
-                  {filteredDepartments.map((d) => (
-                    <option key={d.department_id} value={d.department_id}>
-                      {d.name} {d.code ? `(${d.code})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  Designation
-                </label>
-                <select
-                  value={formData.designation_id}
-                  onChange={(e) => setFormData({ ...formData, designation_id: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                >
-                  <option value="">Select Designation</option>
-                  {designations.map((d) => (
-                    <option key={d.designation_id} value={d.designation_id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700">
-                  In-Charge Class
-                </label>
-                <input
-                  type="text"
-                  value={formData.in_charge_class}
-                  onChange={(e) => setFormData({ ...formData, in_charge_class: e.target.value })}
-                  placeholder="e.g. CSE-AIML Sec A"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Identity & Contact */}
-          <div className="space-y-3">
-            <h5 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">
-              <UserIcon className="h-4 w-4" />
-              Identity & Contact Details
-            </h5>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Employee Code <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.employee_code}
-                  onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Institutional Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-gray-700">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 9876543210"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Demographics & Status */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Gender
-              </label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Unspecified</option>
-                {GENDER_OPTIONS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Date of Birth
-              </label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Blood Group
-              </label>
-              <select
-                value={formData.blood_group}
-                onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value="">Select Blood Group</option>
-                {BLOOD_GROUPS.map((bg) => (
-                  <option key={bg} value={bg}>
-                    {bg}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-700">
-                Status
-              </label>
-              <select
-                value={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: Number(e.target.value) })}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs focus:border-green-600 focus:outline-none"
-              >
-                <option value={1}>ACTIVE</option>
-                <option value={0}>INACTIVE</option>
-              </select>
-            </div>
-          </div>
+          {renderFormFields(true)}
 
           <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4">
             <button
@@ -1126,7 +982,8 @@ export function FacultyManagementView({ token }) {
           </h4>
           <p className="mt-2 text-xs text-gray-500">
             This will mark faculty member {deactivatingFaculty?.employee_code} as inactive.
-            Historical timetable assignments, sessions, and attendance history will be preserved.
+            Historical timetable assignments, sessions, and attendance history will be
+            preserved.
           </p>
 
           <div className="mt-6 flex justify-center gap-3">

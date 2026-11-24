@@ -1,4 +1,5 @@
 import apiClient from "./client";
+import { ENDPOINTS, PHOTO_ENDPOINTS } from "./endpoints";
 
 // Admin Institutional Dashboard Stats
 export async function getAdminDashboardStats(token, signal) {
@@ -189,4 +190,104 @@ export async function getBatches(token, signal) {
 // Designations Reference
 export async function getDesignations(token, signal) {
   return apiClient("/designations", { token, signal });
+}
+
+// ---------------------------------------------------------------------------
+// Profile photos
+// Backend contract: POST multipart/form-data with the file in field "photo";
+// DELETE removes the photo. Responses should include the new photo URL
+// (e.g. { success: true, data: { photo_url: "/uploads/students/abc.jpg" } }).
+// ---------------------------------------------------------------------------
+
+function buildPhotoForm(file) {
+  const form = new FormData();
+  form.append("photo", file);
+  return form;
+}
+
+// Student photos (admin)
+export async function uploadStudentPhoto(token, id, file) {
+  return apiClient(PHOTO_ENDPOINTS.student(id), {
+    method: "POST",
+    token,
+    body: buildPhotoForm(file),
+  });
+}
+
+export async function deleteStudentPhoto(token, id) {
+  return apiClient(PHOTO_ENDPOINTS.student(id), { method: "DELETE", token });
+}
+
+// Faculty photos (admin)
+export async function uploadFacultyPhoto(token, id, file) {
+  return apiClient(PHOTO_ENDPOINTS.faculty(id), {
+    method: "POST",
+    token,
+    body: buildPhotoForm(file),
+  });
+}
+
+export async function deleteFacultyPhoto(token, id) {
+  return apiClient(PHOTO_ENDPOINTS.faculty(id), { method: "DELETE", token });
+}
+
+// Admin's own photo
+export async function uploadAdminPhoto(token, file) {
+  return apiClient(ENDPOINTS.ADMIN_PROFILE_PHOTO, {
+    method: "POST",
+    token,
+    body: buildPhotoForm(file),
+  });
+}
+
+export async function deleteAdminPhoto(token) {
+  return apiClient(ENDPOINTS.ADMIN_PROFILE_PHOTO, { method: "DELETE", token });
+}
+
+/**
+ * Pull the new record's id out of a create response, whatever its shape.
+ * Used to attach the photo right after creating a student or faculty record.
+ */
+export function extractCreatedId(res) {
+  const d = res?.data;
+  return (
+    d?.student_id ?? d?.faculty_id ?? d?.id ?? d?.insertId ??
+    res?.student_id ?? res?.faculty_id ?? res?.id ?? res?.insertId ??
+    d?.student?.student_id ?? d?.faculty?.faculty_id ??
+    null
+  );
+}
+
+const MISSING_ID_ERROR =
+  "Created, but the new record id was not returned, so the photo could not be attached.";
+
+/**
+ * Create a student, then upload the photo (if any).
+ * Returns { record, photoError } so the form can say "saved, but the photo
+ * failed, retry" instead of losing the whole submission.
+ */
+export async function createStudentWithPhoto(token, data, file) {
+  const record = await createStudent(token, data);
+  if (!file) return { record, photoError: null };
+  const id = extractCreatedId(record);
+  if (!id) return { record, photoError: new Error(MISSING_ID_ERROR) };
+  try {
+    await uploadStudentPhoto(token, id, file);
+    return { record, photoError: null };
+  } catch (err) {
+    return { record, photoError: err };
+  }
+}
+
+export async function createFacultyWithPhoto(token, data, file) {
+  const record = await createFaculty(token, data);
+  if (!file) return { record, photoError: null };
+  const id = extractCreatedId(record);
+  if (!id) return { record, photoError: new Error(MISSING_ID_ERROR) };
+  try {
+    await uploadFacultyPhoto(token, id, file);
+    return { record, photoError: null };
+  } catch (err) {
+    return { record, photoError: err };
+  }
 }

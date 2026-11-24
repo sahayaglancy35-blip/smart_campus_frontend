@@ -48,6 +48,11 @@ export const ENDPOINTS = {
   ADMIN_SECTIONS: import.meta.env.VITE_ADMIN_SECTIONS_ENDPOINT || "/sections",
   ADMIN_TIMETABLE: import.meta.env.VITE_ADMIN_TIMETABLE_ENDPOINT || "/timetable",
   ADMIN_DESIGNATIONS: import.meta.env.VITE_ADMIN_DESIGNATIONS_ENDPOINT || "/designations",
+
+  // Profile photos (multipart upload, field name "photo"; DELETE removes it)
+  ADMIN_PROFILE_PHOTO:
+    import.meta.env.VITE_ADMIN_PROFILE_PHOTO_ENDPOINT || "/auth/profile/photo",
+
   // Attendance Sessions
   ADMIN_ATTENDANCE_SESSIONS:
     import.meta.env.VITE_ADMIN_ATTENDANCE_SESSIONS_ENDPOINT || "/attendance/sessions",
@@ -63,3 +68,11 @@ export const ENDPOINTS = {
   ACADEMIC_PERMISSIONS: import.meta.env.VITE_ACADEMIC_PERMISSIONS_ENDPOINT || "/academic/permissions",
 };
 
+/**
+ * Photo endpoints that depend on a record id.
+ * Built from the list endpoints above so they stay in sync if those change.
+ */
+export const PHOTO_ENDPOINTS = {
+  student: (id) => `${ENDPOINTS.ADMIN_STUDENTS}/${id}/photo`,
+  faculty: (id) => `${ENDPOINTS.ADMIN_FACULTY}/${id}/photo`,
+};

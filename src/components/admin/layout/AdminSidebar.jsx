@@ -11,6 +11,8 @@ import {
   ShieldCheckIcon,
   BookOpenIcon,
 } from "@heroicons/react/24/outline";
+import Avatar from "../../common/Avatar";
+import { getPhotoPath } from "../../../utils/photo";
 
 const ADMIN_NAV_ITEMS = [
   {
@@ -115,9 +117,13 @@ export function AdminSidebar({
 
         {/* Profile Card */}
         <div className="mt-5 flex flex-col items-center rounded-2xl bg-green-900/60 p-4 text-center ring-1 ring-white/10 shadow-inner">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-800 ring-4 ring-green-600/30 font-bold text-xl shadow-sm">
-            {user?.name ? user.name.charAt(0).toUpperCase() : "A"}
-          </div>
+          <Avatar
+            src={getPhotoPath(user)}
+            version={user?.photoVersion}
+            name={user?.name || user?.username || "Admin"}
+            size="md"
+            className="ring-4 ring-green-600/30 shadow-sm"
+          />
           <h3 className="mt-3 text-base font-bold text-white tracking-tight line-clamp-1">
             {user?.name || user?.username || "Administrator"}
           </h3>

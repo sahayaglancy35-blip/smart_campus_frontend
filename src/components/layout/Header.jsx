@@ -5,6 +5,8 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import ProfileModal from "../common/ProfileModal";
+import Avatar from "../common/Avatar";
+import { getPhotoPath } from "../../utils/photo";
 
 /* ================================================================
    HEADER
@@ -97,9 +99,14 @@ export function Header({ user, onToggleSidebar, onRefresh }) {
             onClick={() => setShowProfile(true)}
             aria-label="View my profile"
             title="View my profile"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 ring-2 ring-green-600/20 transition hover:scale-105 hover:ring-green-600/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+            className="flex h-10 w-10 items-center justify-center rounded-full ring-2 ring-green-600/20 transition hover:scale-105 hover:ring-green-600/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
           >
-            {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            <Avatar
+              src={getPhotoPath(user)}
+              version={user?.photoVersion}
+              name={user?.name}
+              size="sm"
+            />
           </button>
         </div>
       </div>

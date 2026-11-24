@@ -14,7 +14,10 @@ import {
   BookOpenIcon,
   ShieldExclamationIcon,
 } from "@heroicons/react/24/outline";
+import PhotoAvatar from "../common/Avatar";
+import { getPhotoPath } from "../../utils/photo";
 
+/* Default illustration used when the person has no uploaded photo */
 function Avatar({ gender = "male", size = 80 }) {
   const isFemale = gender === "female";
 
@@ -65,6 +68,7 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const role = user?.role || "STUDENT";
+  const photoPath = getPhotoPath(user);
 
   const studentNavItems = [
     { key: "dashboard", label: "Dashboard", icon: Squares2X2Icon },
@@ -132,7 +136,17 @@ export function Sidebar({
 
         {/* Profile Card */}
         <div className="flex flex-col items-center rounded-2xl bg-green-900/60 p-4 text-center ring-1 ring-white/10 shadow-inner">
-          <Avatar gender={user?.gender} size={76} />
+          {photoPath ? (
+            <PhotoAvatar
+              src={photoPath}
+              version={user?.photoVersion}
+              name={user?.name}
+              size="lg"
+              className="ring-4 ring-green-600/30 shadow-sm"
+            />
+          ) : (
+            <Avatar gender={user?.gender} size={76} />
+          )}
           <h3 className="mt-3 text-base font-bold text-white tracking-tight line-clamp-1">
             {user?.name || "User"}
           </h3>

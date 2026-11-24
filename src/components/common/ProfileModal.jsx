@@ -1,5 +1,8 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ProfileUpdateContext } from "../../context/ProfileUpdateContext";
+import Avatar from "./Avatar";
+import PhotoUpload from "./PhotoUpload";
+import { getPhotoPath } from "../../utils/photo";
 import {
   XMarkIcon,
   UserIcon,
@@ -35,7 +38,6 @@ function DropletIcon({ className = "h-5 w-5" }) {
     </svg>
   );
 }
-
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENDERS = [
@@ -295,7 +297,9 @@ function Field({ label, error, children, hint }) {
 /* ================================================================
    PROFILE MODAL
    Opens from the avatar in the header on every page.
-   Admins also get an "Edit profile" button (admin-only feature).
+   Everyone sees their profile photo here (read-only).
+   Admins also get an "Edit profile" button, which includes changing
+   their own photo (admin-only feature).
    Props: isOpen (bool), user (object), onClose (fn)
 ================================================================= */
 function ProfileModal({ isOpen, user, onClose }) {
@@ -308,12 +312,16 @@ function ProfileModal({ isOpen, user, onClose }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [justSaved, setJustSaved] = useState(false);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   const handleClose = useCallback(() => {
     setEditing(false);
     setErrors({});
     setSaveError("");
     setJustSaved(false);
+    setPhotoFile(null);
+    setRemovePhoto(false);
     onClose?.();
   }, [onClose]);
 
@@ -358,6 +366,8 @@ function ProfileModal({ isOpen, user, onClose }) {
     setErrors({});
     setSaveError("");
     setJustSaved(false);
+    setPhotoFile(null);
+    setRemovePhoto(false);
     setEditing(true);
   };
 
@@ -365,6 +375,8 @@ function ProfileModal({ isOpen, user, onClose }) {
     setEditing(false);
     setErrors({});
     setSaveError("");
+    setPhotoFile(null);
+    setRemovePhoto(false);
   };
 
   const setField = (key) => (event) => {
@@ -390,9 +402,13 @@ function ProfileModal({ isOpen, user, onClose }) {
         dateOfBirth: form.dateOfBirth || null,
         gender: form.gender || null,
         bloodGroup: form.bloodGroup || null,
+        photoFile,
+        removePhoto,
       });
       setEditing(false);
       setJustSaved(true);
+      setPhotoFile(null);
+      setRemovePhoto(false);
     } catch (err) {
       setSaveError(
         err?.message || "Could not save your changes. Please try again.",
@@ -438,9 +454,13 @@ function ProfileModal({ isOpen, user, onClose }) {
             <XMarkIcon className="h-5 w-5" />
           </button>
 
-          <span className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-3xl font-bold text-green-800 shadow-lg ring-4 ring-white/80">
-            {(name || "U").charAt(0).toUpperCase()}
-          </span>
+          <Avatar
+            src={getPhotoPath(user)}
+            version={user?.photoVersion}
+            name={name}
+            size="lg"
+            className="shadow-lg ring-4 ring-white/80"
+          />
           <h3 className="mt-3 text-lg font-semibold">{name || "User"}</h3>
           <p className="text-sm text-green-200">{roleLabel}</p>
         </div>
@@ -453,6 +473,20 @@ function ProfileModal({ isOpen, user, onClose }) {
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 overflow-y-auto px-6 py-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <PhotoUpload
+                  currentUrl={getPhotoPath(user)}
+                  name={form.name}
+                  file={photoFile}
+                  removed={removePhoto}
+                  disabled={saving}
+                  onChange={({ file, remove }) => {
+                    setPhotoFile(file);
+                    setRemovePhoto(remove);
+                  }}
+                />
+              </div>
+
               <Field label="Name *" error={errors.name}>
                 <input
                   type="text"
