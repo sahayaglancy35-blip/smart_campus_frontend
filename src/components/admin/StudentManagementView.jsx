@@ -22,6 +22,7 @@ import Alert from "../common/Alert";
 import Avatar from "../common/Avatar";
 import PhotoUpload from "../common/PhotoUpload";
 import { getPhotoPath } from "../../utils/photo";
+import IdCardActions, { IdCardPreviewModal } from "./IdCardActions";
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -113,6 +114,7 @@ export function StudentManagementView({ token }) {
   const [editingStudent, setEditingStudent] = useState(null);
   const [viewingStudent, setViewingStudent] = useState(null);
   const [deletingStudent, setDeletingStudent] = useState(null);
+  const [idCardRecord, setIdCardRecord] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -652,6 +654,10 @@ export function StudentManagementView({ token }) {
       ),
     },
     {
+      header: "Academic Year",
+      key: "academic_year_label",
+    },
+    {
       header: "Batch & Section",
       key: "batch_id",
       render: (row) => (
@@ -702,6 +708,10 @@ export function StudentManagementView({ token }) {
           >
             <PencilSquareIcon className="h-4 w-4" />
           </button>
+          <IdCardActions
+            onClick={() => setIdCardRecord(row)}
+            cardType="student"
+          />
           <button
             type="button"
             onClick={() => setDeletingStudent(row)}
@@ -727,7 +737,7 @@ export function StudentManagementView({ token }) {
           columns={columns}
           data={students}
           rowKey="student_id"
-          searchPlaceholder="Search by name, register number, programme, or batch..."
+          searchPlaceholder="Search by name, register number, programme, department, or year..."
           pageSize={10}
           emptyMessage="No students found matching your criteria."
           actions={
@@ -742,6 +752,12 @@ export function StudentManagementView({ token }) {
           }
         />
       )}
+
+      <IdCardPreviewModal
+        record={idCardRecord}
+        cardType="student"
+        onClose={() => setIdCardRecord(null)}
+      />
 
       {/* Register New Student Modal */}
       <Modal

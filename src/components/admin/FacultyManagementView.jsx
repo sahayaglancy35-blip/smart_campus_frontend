@@ -18,6 +18,7 @@ import Alert from "../common/Alert";
 import Avatar from "../common/Avatar";
 import PhotoUpload from "../common/PhotoUpload";
 import { getPhotoPath } from "../../utils/photo";
+import IdCardActions, { IdCardPreviewModal } from "./IdCardActions";
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -92,6 +93,7 @@ export function FacultyManagementView({ token }) {
   const [editingFaculty, setEditingFaculty] = useState(null);
   const [deactivatingFaculty, setDeactivatingFaculty] = useState(null);
   const [viewingFaculty, setViewingFaculty] = useState(null);
+  const [idCardRecord, setIdCardRecord] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -620,6 +622,17 @@ export function FacultyManagementView({ token }) {
           >
             <PencilSquareIcon className="h-4 w-4" />
           </button>
+          <IdCardActions
+            onClick={() =>
+              setIdCardRecord({
+                ...row,
+                department_name: getDepartmentName(row),
+                school_name: getSchoolName(row),
+                designation_name: getDesignationName(row),
+              })
+            }
+            cardType="faculty"
+          />
           {row.is_active ? (
             <button
               type="button"
@@ -719,6 +732,12 @@ export function FacultyManagementView({ token }) {
           }
         />
       )}
+
+      <IdCardPreviewModal
+        record={idCardRecord}
+        cardType="faculty"
+        onClose={() => setIdCardRecord(null)}
+      />
 
       {/* View Profile Details Modal */}
       <Modal
