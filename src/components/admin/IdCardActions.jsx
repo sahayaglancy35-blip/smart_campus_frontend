@@ -21,27 +21,46 @@ function CardFrame({ side, children }) {
       <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
         {side}
       </p>
-      <article className="relative mx-auto h-[85.6mm] w-[54mm] shrink-0 rounded-[4mm] bg-gradient-to-br from-emerald-300 via-green-700 to-green-950 p-[1.1mm] shadow-xl">
-        <div className="relative h-full w-full overflow-hidden rounded-[3mm] border border-white/80 bg-white text-slate-800">
+      <article className="relative mx-auto h-[85.6mm] w-[54mm] shrink-0 overflow-hidden rounded-[3.5mm] bg-[#edf4f6] shadow-xl border border-slate-200/60">
+        <div className="relative h-full w-full overflow-hidden bg-[#edf4f6] text-[#123d53]">
           {children}
-          <div className="pointer-events-none absolute inset-[1.3mm] rounded-[2.2mm] border border-emerald-100/90" />
         </div>
       </article>
     </div>
   );
 }
 
-function CampusMark({ inverse = false }) {
+function JoyUniversityLogo() {
   return (
-    <span
-      className={`grid h-[7mm] w-[7mm] shrink-0 place-items-center rounded-full border text-[7px] font-black tracking-tight ${
-        inverse
-          ? "border-white/60 bg-white text-green-900"
-          : "border-green-200 bg-green-900 text-white"
-      }`}
-    >
-      JU
-    </span>
+    <div className="flex flex-col items-center">
+      {/* Exact Joy University stylized 'JU' emblem */}
+      <svg
+        aria-hidden="true"
+        className="h-[7.2mm] w-[8.5mm]"
+        viewBox="0 0 40 34"
+        fill="none"
+      >
+        {/* Left red U leg with circular notch */}
+        <path
+          d="M6 2 h11 v18 c0 6 -4 10 -9.5 10 C3.5 30 2 27 2 21 V2 Z"
+          fill="#9e2a37"
+        />
+        {/* Right curved slate U/J stem */}
+        <path
+          d="M17 2 h15 v18 c0 7 -5 11 -11 11 c-3 0 -5.5 -1 -7.5 -3 c3 -2 4.5 -5 4.5 -9 V2 Z"
+          fill="#607686"
+        />
+        {/* Lower intersection circle */}
+        <circle cx="17.5" cy="19.5" r="5.2" fill="#edf4f6" />
+      </svg>
+      {/* JOY UNIVERSITY serif typography */}
+      <span
+        className="mt-0.5 tracking-[0.14em] text-[9.5px] font-normal leading-none text-[#2d3748]"
+        style={{ fontFamily: "'Cinzel', 'Times New Roman', Georgia, serif", letterSpacing: "0.12em" }}
+      >
+        JOY UNIVERSITY
+      </span>
+    </div>
   );
 }
 
@@ -49,157 +68,257 @@ function CardFront({ record, cardType, identifier, qrUrl }) {
   const [photoError, setPhotoError] = useState(false);
   const photoPath = getPhotoPath(record);
   const isFaculty = cardType === "faculty";
-  const initials = String(record.full_name || (isFaculty ? "F" : "S"))
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0] || "")
-    .join("")
-    .toUpperCase();
 
   return (
     <CardFrame side="Front">
-      <header className="absolute inset-x-0 top-0 flex h-[14mm] items-center gap-2.5 bg-gradient-to-r from-[#052f24] via-[#14532d] to-[#052f24] px-[5mm] text-white">
-        <CampusMark inverse />
-        <div className="min-w-0">
-          <strong className="block truncate text-[8px] tracking-[0.08em]">
-            JOY UNIVERSITY
-          </strong>
-          <span className="mt-0.5 block text-[5px] font-medium tracking-[0.12em] text-emerald-100">
-            TIRUNELVELI, TAMIL NADU
-          </span>
-          <span className="mt-0.5 block text-[4px] tracking-[0.14em] text-green-200">
-            {isFaculty ? "FACULTY IDENTIFICATION" : "STUDENT IDENTIFICATION"}
-          </span>
-        </div>
-      </header>
-      {photoPath && !photoError ? (
-        <img
-          className="absolute left-1/2 top-[16mm] h-[21mm] w-[21mm] -translate-x-1/2 rounded-full border-[1.2mm] border-white object-cover shadow-[0_0_0_0.7mm_#14532d]"
-          src={resolveAssetUrl(photoPath)}
-          alt={`${record.full_name || "Campus member"} photograph`}
-          onError={() => setPhotoError(true)}
-        />
-      ) : (
-        <div className="absolute left-1/2 top-[16mm] grid h-[21mm] w-[21mm] -translate-x-1/2 place-items-center rounded-full border-[1.2mm] border-white bg-emerald-50 text-xl font-bold text-green-900 shadow-[0_0_0_0.7mm_#14532d]">
-          {initials}
-        </div>
-      )}
-      <h2 className="absolute left-[6mm] right-[4mm] top-[38.5mm] line-clamp-2 text-center text-[9px] font-extrabold leading-tight text-[#123b2b]">
-        {record.full_name || (isFaculty ? "Faculty" : "Student")}
-      </h2>
-      <p className="absolute left-[6mm] right-[4mm] top-[43mm] truncate text-center text-[5px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-        {isFaculty
-          ? record.designation_name || record.designation || "Faculty"
-          : "Student"}
-      </p>
-      <div className="absolute left-[6mm] right-[4mm] top-[47.5mm] border-t border-emerald-100 pt-[1.2mm]">
-        <p className="text-[4px] font-bold tracking-[0.18em] text-slate-500">
-          {isFaculty ? "EMPLOYEE ID" : "REGISTER NUMBER"}
-        </p>
-        <strong className="block truncate text-[7px] font-extrabold tracking-wide text-slate-900">
-          {identifier}
-        </strong>
-      </div>
-      <div className="absolute left-[6mm] right-[4mm] top-[55mm]">
-        <p className="text-[4px] font-bold tracking-[0.18em] text-slate-500">
-          {isFaculty ? "SCHOOL / DEPARTMENT" : "DEPARTMENT"}
-        </p>
-        <strong className="block truncate text-[6px] font-semibold text-slate-800">
-          {isFaculty
-            ? record.department_name || record.school_name || "Faculty"
-            : record.department_name || "Department not set"}
-        </strong>
-      </div>
-      <div className="absolute left-[6mm] right-[4mm] top-[62mm]">
-        <p className="text-[4px] font-bold tracking-[0.18em] text-slate-500">
-          {isFaculty ? "SCHOOL" : "ACADEMIC YEAR"}
-        </p>
-        <strong className="block truncate text-[6px] font-semibold text-slate-800">
-          {isFaculty
-            ? record.school_name || "Joy University"
-            : record.academic_year_label || "Current enrollment"}
-        </strong>
-      </div>
-      <div className="absolute bottom-[5mm] left-[6mm] w-[28mm]">
-        <span className="block truncate text-[4px] font-bold tracking-[0.12em] text-green-800">
-          OFFICIAL CAMPUS ID
-        </span>
-        <span className="mt-0.5 block truncate text-[4px] text-slate-500">
-          {record.school_name || "Joy University"}
-        </span>
-      </div>
-      <img
-        className="absolute bottom-[4.5mm] right-[4mm] h-[12mm] w-[12mm] bg-white p-[0.5mm]"
-        src={qrUrl}
-        alt={`${isFaculty ? "Employee" : "Register"} identifier QR code`}
+      {/* Physical card decorative corner accents */}
+      {/* Top-left black/dark slate angled shape */}
+      <div
+        className="absolute left-0 top-[16mm] h-[8.5mm] w-[12mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
       />
-      <span className="absolute bottom-[2mm] right-[4mm] w-[12mm] text-center text-[3.5px] font-semibold tracking-wide text-slate-500">
-        SCAN TO VERIFY
-      </span>
+      {/* Top-right black/dark slate angled shape */}
+      <div
+        className="absolute right-0 top-0 h-[7mm] w-[11mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
+      />
+      {/* Bottom-left black/dark slate angled accent */}
+      <div
+        className="absolute bottom-0 left-0 h-[6.5mm] w-[11mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%)" }}
+      />
+      {/* Bottom-right black/dark slate angled accent */}
+      <div
+        className="absolute bottom-0 right-0 h-[6.5mm] w-[11mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(100% 0, 0 100%, 100% 100%)" }}
+      />
+
+      {/* Top Header line with thin separator */}
+      <div className="absolute left-[3mm] right-[3mm] top-[17.5mm] border-b-[0.6px] border-[#2d3748]/70" />
+
+      {/* University Brand Header */}
+      <header className="absolute left-0 right-0 top-[3mm] z-10 flex flex-col items-center justify-center">
+        <JoyUniversityLogo />
+      </header>
+
+      {/* Photo with rounded rectangular border */}
+      <div className="absolute left-1/2 top-[19.5mm] z-10 -translate-x-1/2">
+        {photoPath && !photoError ? (
+          <img
+            className="h-[27mm] w-[23.5mm] rounded-[3mm] border-[0.6px] border-[#2d3748] bg-white object-cover shadow-sm"
+            src={resolveAssetUrl(photoPath)}
+            alt={`${record.full_name || "Campus member"} photograph`}
+            onError={() => setPhotoError(true)}
+          />
+        ) : (
+          <div className="grid h-[27mm] w-[23.5mm] place-items-center rounded-[3mm] border-[0.6px] border-[#2d3748] bg-white text-lg font-bold text-[#2d3748] shadow-sm">
+            {String(record.full_name || (isFaculty ? "F" : "S"))
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0] || "")
+              .join("")
+              .toUpperCase()}
+          </div>
+        )}
+      </div>
+
+      {/* Student/Faculty Full Name - Reddish Brown / Burgundy font */}
+      <h2
+        className="absolute left-[2mm] right-[2mm] top-[49.5mm] text-center text-[8.5px] font-bold uppercase tracking-[0.04em] text-[#822a36]"
+        style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+      >
+        {record.full_name || (isFaculty ? "Faculty Name" : "Student Name")}
+      </h2>
+
+      {/* Register Number / Employee ID - Bold Black */}
+      <p
+        className="absolute left-[2mm] right-[2mm] top-[54.5mm] text-center text-[9.5px] font-bold tracking-[0.05em] text-[#1a202c]"
+        style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+      >
+        {identifier}
+      </p>
+
+      {/* School / Department Name */}
+      <p
+        className="absolute left-[1.5mm] right-[1.5mm] top-[59.5mm] text-center text-[7.5px] font-bold leading-tight text-[#1a202c]"
+        style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+      >
+        {record.school_name ||
+          record.department_name ||
+          (isFaculty ? "Department of Faculty" : "School of Computational Intelligence")}
+      </p>
+
+      {/* Registrar Authentic Signature */}
+      <div className="absolute bottom-[9mm] left-0 right-0 flex justify-center">
+        <svg
+          className="h-[6.5mm] w-[22mm]"
+          viewBox="0 0 100 35"
+          fill="none"
+          stroke="#4a6572"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* Fluid realistic registrar signature stroke matching photo */}
+          <path d="M12 28 C18 10, 26 2, 28 8 C30 18, 22 28, 38 22 C46 17, 48 9, 52 14 C56 22, 60 26, 68 20 C74 15, 78 22, 86 18 M20 23 L88 23" />
+        </svg>
+      </div>
+
+      {/* Registrar Title */}
+      <p
+        className="absolute bottom-[5.5mm] left-0 right-0 text-center text-[7.5px] font-bold text-[#1a202c]"
+        style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+      >
+        Registrar
+      </p>
+
+      {/* Issuing Authority Tag */}
+      <p
+        className="absolute bottom-[2.5mm] left-0 right-0 text-center text-[6px] font-normal tracking-[0.1em] text-[#2d3748]"
+        style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+      >
+        ISSUING AUTHORITY
+      </p>
+      {qrUrl && <span className="hidden">{qrUrl}</span>}
     </CardFrame>
   );
 }
 
 function CardBack({ record, cardType, identifier }) {
   const isFaculty = cardType === "faculty";
-  const instructions = isFaculty
-    ? [
-        "Carry this card while on university premises.",
-        "Display it when requested by authorized staff.",
-        "If found, return it to Joy University, Tirunelveli.",
-      ]
-    : [
-        "Carry this card while on university premises.",
-        "Display it when requested by university staff.",
-        "If found, return it to Joy University, Tirunelveli.",
-      ];
+  const batch =
+    record.batch_label ||
+    record.batch_name ||
+    record.academic_year_label ||
+    "2023-24";
+  const bloodGroup = record.blood_group || "AB+";
+  const dobValue = record.date_of_birth;
+  let dateOfBirth = "23/01/2006";
+  if (dobValue) {
+    const date = new Date(dobValue);
+    if (!Number.isNaN(date.getTime())) {
+      dateOfBirth = `${String(date.getUTCDate()).padStart(2, "0")}/${String(
+        date.getUTCMonth() + 1,
+      ).padStart(2, "0")}/${date.getUTCFullYear()}`;
+    }
+  }
+  const address =
+    record.address ||
+    record.address_line ||
+    record.permanent_address ||
+    "10/66/13 LHL Nagar\nViswasapuram,Thov\nalai, Kanniyakumari,\n629302";
+
+  const instructions = [
+    "This Identity Card is non-transferable.",
+    "If this ID card is lost/found kindly return to theissuing authority.",
+    "This card must be worn visibly by studentduring his or her presence in Joy University premises. It must be shown to authorizedpersonnel as and when requested.",
+  ];
 
   return (
     <CardFrame side="Back">
-      <header className="absolute inset-x-0 top-0 flex h-[20mm] flex-col items-center justify-center bg-gradient-to-br from-[#052f24] via-[#14532d] to-[#052f24] text-white">
-        <CampusMark inverse />
-        <strong className="mt-1 text-[7px] tracking-[0.12em]">
-          JOY UNIVERSITY
-        </strong>
-        <span className="mt-0.5 text-[4px] font-medium tracking-[0.18em] text-emerald-100">
-          TIRUNELVELI, TAMIL NADU
-        </span>
-      </header>
-      <div className="absolute left-[7mm] right-[4mm] top-[23mm]">
-        <p className="text-[4px] font-bold tracking-[0.2em] text-emerald-700">
-          CAMPUS IDENTIFICATION
+      {/* Top angled dark band accent matching physical sample */}
+      <div
+        className="absolute right-0 top-0 h-[6mm] w-[26mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(28% 0, 100% 0, 72% 100%, 0% 100%)" }}
+      />
+      {/* Bottom angled dark corner accents */}
+      <div
+        className="absolute bottom-0 left-0 h-[5.5mm] w-[9mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%)" }}
+      />
+      <div
+        className="absolute bottom-0 right-0 h-[5.5mm] w-[9mm] bg-[#1a202c]"
+        style={{ clipPath: "polygon(100% 0, 0 100%, 100% 100%)" }}
+      />
+
+      {/* Top Demographic Details: Batch, Blood Group, Date of Birth, Address */}
+      <div
+        className="absolute left-[3.5mm] right-[3mm] top-[7.5mm] space-y-[1.8mm] text-[8.5px] leading-tight text-[#1a202c]"
+        style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+      >
+        <p className="flex">
+          <span className="w-[18mm] font-normal">Batch</span>
+          <span className="w-[3mm] font-bold">:</span>
+          <strong className="flex-1 font-bold">{batch}</strong>
         </p>
-        <p className="mt-1 line-clamp-2 text-[7px] font-bold leading-tight text-slate-900">
-          {record.full_name || (isFaculty ? "Faculty" : "Student")}
+        <p className="flex">
+          <span className="w-[18mm] font-normal">Blood Group</span>
+          <span className="w-[3mm] font-bold">:</span>
+          <strong className="flex-1 font-bold">{bloodGroup}</strong>
         </p>
-        <p className="mt-0.5 truncate text-[5px] text-slate-500">
-          {isFaculty ? "Employee ID" : "Register No"}: {identifier}
+        <p className="flex">
+          <span className="w-[18mm] font-normal">Date of Birth</span>
+          <span className="w-[3mm] font-bold">:</span>
+          <strong className="flex-1 font-bold">{dateOfBirth}</strong>
+        </p>
+        <p className="flex items-start">
+          <span className="w-[18mm] font-normal shrink-0">Address</span>
+          <span className="w-[3mm] font-bold shrink-0">:</span>
+          <strong className="flex-1 font-bold whitespace-pre-line text-[8px] leading-[1.15]">
+            {address}
+          </strong>
         </p>
       </div>
-      <div className="absolute left-[7mm] right-[4mm] top-[39mm] space-y-[3mm]">
-        {instructions.map((instruction) => (
-          <p
-            key={instruction}
-            className="flex gap-1.5 text-[5px] leading-[1.4] text-slate-700"
-          >
-            <span className="mt-[0.5mm] h-[1.3mm] w-[1.3mm] shrink-0 rounded-full bg-emerald-700" />
-            <span>{instruction}</span>
-          </p>
-        ))}
+
+      {/* INSTRUCTIONS Header & Bullet Points */}
+      <div className="absolute left-[3.5mm] right-[3mm] top-[37.5mm]">
+        <h3
+          className="text-[9px] font-bold uppercase tracking-[0.05em] text-[#822a36]"
+          style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+        >
+          INSTRUCTIONS
+        </h3>
+        <ul
+          className="mt-[1.2mm] space-y-[1.5mm] text-[6.8px] leading-[1.2] text-[#1a202c]"
+          style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+        >
+          {instructions.map((instruction) => (
+            <li key={instruction} className="flex items-start gap-[1.5mm]">
+              <span className="mt-[1.2mm] h-[1.2mm] w-[1.2mm] shrink-0 rounded-full bg-[#822a36]" />
+              <span className="flex-1">{instruction}</span>
+            </li>
+          ))}
+        </ul>
       </div>
-      <div className="absolute bottom-[13mm] left-[7mm] right-[4mm]">
-        <p className="border-t border-slate-300 pt-[1mm] text-[4px] font-semibold tracking-[0.12em] text-slate-500">
-          AUTHORIZED SIGNATURE
+
+      {/* CONTACT Section */}
+      <div className="absolute bottom-[11.5mm] left-[3.5mm] right-[3mm]">
+        <h3
+          className="text-[9px] font-bold uppercase tracking-[0.05em] text-[#822a36]"
+          style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+        >
+          CONTACT
+        </h3>
+        {/* Phone row with red telephone icon */}
+        <p
+          className="mt-[1mm] flex items-center gap-[1.8mm] text-[7.5px] font-bold text-[#1a202c]"
+          style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+        >
+          <span className="flex h-[3.2mm] w-[3.2mm] items-center justify-center rounded-sm bg-[#9e2a37] text-[5px] text-white">
+            📞
+          </span>
+          <span>+91 4637 - 231812</span>
+        </p>
+        {/* Email row with red envelope icon */}
+        <p
+          className="mt-[1mm] flex items-center gap-[1.8mm] text-[7.5px] font-bold text-[#1a202c]"
+          style={{ fontFamily: "'Times New Roman', Georgia, serif" }}
+        >
+          <span className="flex h-[3.2mm] w-[3.2mm] items-center justify-center rounded-sm bg-[#9e2a37] text-[5px] text-white">
+            ✉
+          </span>
+          <span>oor@joyuniversity.edu.in</span>
         </p>
       </div>
-      <div className="absolute inset-x-[5mm] bottom-[4mm] border-t border-emerald-100 pt-[1.5mm] text-center">
-        <span className="block text-[4px] font-bold tracking-[0.1em] text-green-900">
-          PROPERTY OF JOY UNIVERSITY
-        </span>
-        <span className="mt-0.5 block text-[3.5px] text-slate-500">
-          Tirunelveli, Tamil Nadu
-        </span>
-      </div>
+
+      {/* High-fidelity full-width 1D Barcode at card footer */}
+      <div
+        className="absolute inset-x-[1.5mm] bottom-[1mm] h-[8mm]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg, #1a202c 0, #1a202c 0.55mm, transparent 0.55mm, transparent 0.95mm, #1a202c 0.95mm, #1a202c 1.6mm, transparent 1.6mm, transparent 2.1mm, #1a202c 2.1mm, #1a202c 2.45mm, transparent 2.45mm, transparent 3.1mm)",
+        }}
+      />
     </CardFrame>
   );
 }

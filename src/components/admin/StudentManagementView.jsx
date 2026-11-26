@@ -65,6 +65,7 @@ const EMPTY_FORM = {
   full_name: "",
   email: "",
   phone: "",
+  address: "",
   gender: "",
   date_of_birth: "",
   blood_group: "",
@@ -269,6 +270,7 @@ export function StudentManagementView({ token }) {
       full_name: student.full_name || "",
       email: student.email || "",
       phone: student.phone || "",
+      address: student.address || "",
       gender: student.gender || "",
       date_of_birth: student.date_of_birth ? student.date_of_birth.substring(0, 10) : "",
       blood_group: student.blood_group || "",
@@ -291,6 +293,7 @@ export function StudentManagementView({ token }) {
     full_name: formData.full_name.trim(),
     email: formData.email.trim() || null,
     phone: formData.phone.trim() || null,
+    address: formData.address.trim() || null,
     gender: formData.gender || null,
     date_of_birth: formData.date_of_birth || null,
     blood_group: formData.blood_group || null,
@@ -541,6 +544,16 @@ export function StudentManagementView({ token }) {
               onChange={setField("phone")}
               placeholder="+91 9876543210"
               className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <FormField label="Permanent Address" upper className="md:col-span-2">
+            <textarea
+              value={formData.address}
+              onChange={setField("address")}
+              placeholder="House/Street, Village or Area, District, State, PIN"
+              rows={3}
+              className={`${INPUT_CLASS} resize-y`}
             />
           </FormField>
         </div>

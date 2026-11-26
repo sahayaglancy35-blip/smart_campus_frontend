@@ -32,8 +32,8 @@ describe("student ID card utilities", () => {
     assert.equal(pdf.type, "application/pdf");
     assert.match(contents, /\/Count 4/);
     assert.match(contents, /\/MediaBox \[0 0 153\.071 242\.646\]/);
-    assert.match(contents, /PROPERTY OF JOY UNIVERSITY - TIRUNELVELI/);
-    assert.match(contents, /0\.04 0\.31 0\.16 rg/);
+    assert.match(contents, /INSTRUCTIONS/);
+    assert.match(contents, /This Identity Card is non-transferable/);
     assert.match(contents, /\/Root 1 0 R/);
     const xrefOffset = Number(contents.match(/startxref\n(\d+)/)[1]);
     assert.equal(contents.slice(xrefOffset, xrefOffset + 4), "xref");
@@ -49,9 +49,9 @@ describe("student ID card utilities", () => {
     assert.equal(getIdCardIdentifier(faculty, "faculty"), "FAC-008");
     const pdf = await createIdCardsPdf([faculty], "faculty");
     const contents = new TextDecoder("latin1").decode(await pdf.arrayBuffer());
-    assert.match(contents, /EMPLOYEE ID/);
-    assert.match(contents, /DESIGNATION/);
-    assert.match(contents, /TIRUNELVELI, TAMIL NADU/);
+    assert.match(contents, /INSTRUCTIONS/);
+    assert.match(contents, /FAC-008/);
+    assert.match(contents, /FACULTY MEMBER/);
     assert.match(contents, /\/Count 2/);
     assert.match(contents, /\/MediaBox \[0 0 153\.071 242\.646\]/);
   });
@@ -81,8 +81,8 @@ describe("student ID card utilities", () => {
     assert.match(markup, /class="card front"/);
     assert.match(markup, /class="card back"/);
     assert.match(markup, /@page \{ size: 54mm 85\.6mm; margin: 0; \}/);
-    assert.match(markup, /linear-gradient\(135deg,#4ade80/);
+    assert.match(markup, /background: #edf4f6/);
     assert.doesNotMatch(markup, /side-accent/);
-    assert.match(markup, /TIRUNELVELI, TAMIL NADU/);
+    assert.match(markup, /JOY UNIVERSITY/);
   });
 });
