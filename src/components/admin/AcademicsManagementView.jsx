@@ -42,6 +42,7 @@ import Alert from "../common/Alert";
 import { deliveryStyleOf } from "../common/deliveryStyle";
 import { DeliveryLegend } from "../common/DeliveryLegend";
 import { AdminTimetableWorkspace } from "./AdminTimetableWorkspace";
+import CreditManagementView from "./CreditManagementView";
 
 import {
   PlusIcon,
@@ -52,6 +53,7 @@ import {
   UserGroupIcon,
   CalendarDaysIcon,
   BuildingLibraryIcon,
+  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 
 const DAYS_OF_WEEK = [
@@ -64,7 +66,7 @@ const DAYS_OF_WEEK = [
 ];
 
 export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
-  // Tabs: "hierarchy" | "timetable" | "sections" | "offerings" | "subjects"
+  // Tabs: "hierarchy" | "timetable" | "sections" | "offerings" | "subjects" | "credits"
   const [activeTab, setActiveTabState] = useState(() => {
     try {
       return sessionStorage.getItem("ju_academics_tab") || "timetable";
@@ -1509,6 +1511,19 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
               {schools.length + programs.length + batches.length}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("credits")}
+            className={`inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+              activeTab === "credits"
+                ? "border-green-800 text-green-800"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+            }`}
+          >
+            <BanknotesIcon className="h-4 w-4" />
+            <span>Credits Offering</span>
+          </button>
         </nav>
 
         {/* Primary Contextual Action Button */}
@@ -1643,6 +1658,8 @@ export function AcademicsManagementView({ token, refreshTrigger = 0 }) {
             searchPlaceholder="Search subjects by code or name..."
             emptyMessage="No academic subjects configured."
           />
+        ) : activeTab === "credits" ? (
+          <CreditManagementView token={token} />
         ) : (
           /* Academic Structure Tab */
           <div>

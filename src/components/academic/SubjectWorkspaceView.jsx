@@ -25,6 +25,7 @@ import {
   removeStaffAssignment,
 } from "../../api/academic";
 import { getFaculty } from "../../api/admin";
+import FacultyCreditsPanel from "../faculty/FacultyCreditsPanel";
 import Modal from "../common/Modal";
 import LoadingSpinner from "../common/LoadingSpinner";
 import Alert from "../common/Alert";
@@ -840,7 +841,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
 
   if (loading && !subjectDetails) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-xs">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-12 text-center shadow-xs">
         <LoadingSpinner message="Loading course workspace..." size="lg" />
       </div>
     );
@@ -849,7 +850,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
   const sub = subjectDetails || {};
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-full space-y-6 rounded-2xl bg-emerald-50/70 p-4 sm:p-5">
       {/* Feedback Banner */}
       {feedback && (
         <Alert
@@ -860,7 +861,7 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
       )}
 
       {/* Top Navigation & Workspace Header */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-xs space-y-4">
         {/* Breadcrumb & Back Row */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -1801,6 +1802,9 @@ export function SubjectWorkspaceView({ token, user, subjectId, onBack }) {
       {/* ------------------------------------------------------------- */}
       {activeTab === "questions" && (
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs space-y-5">
+          {user?.role === "FACULTY" && (
+            <FacultyCreditsPanel token={token} userId={user.user_id} />
+          )}
           {/* Header & AI Generate Bridge Bar */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-gray-100">
             <div>

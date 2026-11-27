@@ -272,13 +272,7 @@ export function Dashboard({ user, token, onLogout }) {
 
       // Faculty routes
       case "faculty-dashboard":
-        return (
-          <FacultyDashboardOverview
-            token={token}
-            user={user}
-            onNavigate={handleNavigate}
-          />
-        );
+        return <FacultyDashboardOverview token={token} user={user} onNavigate={handleNavigate} />;
 
       case "faculty-academics":
         return <FacultyAcademicManagerView token={token} user={user} />;
